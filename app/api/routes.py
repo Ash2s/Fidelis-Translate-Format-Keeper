@@ -138,6 +138,12 @@ async def upload_glossary(file: UploadFile = File(...)):
     try:
         glossary_id = glossary_service.load_glossary(temp_path, file.filename)
         term_count = glossary_service.get_term_count(glossary_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback, logging
+        logging.getLogger(__name__).error(f"Glossary upload error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=400, detail=f"术语表解析失败：{e}")
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -453,6 +459,37 @@ def _translate_paragraphs_sync(
                 "translated_text": text,
                 "translated_runs": [rd["text"] for rd in runs_data],
             })
+            continue
+
+        # ── 0. URL-aware translation shortcut ──
+        # Lines containing URLs are translated via the URL-label method to
+        # avoid the model "refusing to access" or mangling the URL.
+        if TranslatorService.contains_url(text):
+            translated = TranslatorService.translate_url_label_line(text, glossary)
+            translated = TranslatorService.fix_cn_labels(translated)
+            translated = translator_service._clean_mechanical_errors(translated)
+            # For URL lines, put the full translation in the first non-empty run
+            translated_runs = []
+            first_done = False
+            for rd in runs_data:
+                if rd.get("text", "").strip():
+                    if not first_done:
+                        translated_runs.append(translated)
+                        first_done = True
+                    else:
+                        translated_runs.append("")
+                else:
+                    translated_runs.append(rd.get("text", ""))
+            result.append({
+                **para_data,
+                "translated_text": translated,
+                "translated_runs": translated_runs,
+            })
+            if job_id and job_id in jobs and total > 0:
+                p = jobs[job_id]["progress"]
+                frac = frac_start + (idx + 1) / total * (frac_end - frac_start)
+                base = int(p.get("completed", 0))
+                p["completed"] = base + min(frac, 0.99)
             continue
 
         # ── 1. Translate full paragraph (for quality / fallback) ──

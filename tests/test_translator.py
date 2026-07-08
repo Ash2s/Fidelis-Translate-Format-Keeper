@@ -188,3 +188,63 @@ def test_clean_mechanical_errors():
     # No false positives
     assert TranslatorService._clean_mechanical_errors("Hello World") == "Hello World"
     assert "committee" in TranslatorService._clean_mechanical_errors("committee")
+
+
+def test_clean_mechanical_errors_preserves_www():
+    """URL fragments like 'www' should NOT be deduplicated when inside a URL."""
+    # A full URL should be preserved completely
+    result = TranslatorService._clean_mechanical_errors(
+        "Visit https://www.example.com page"
+    )
+    assert "https://www.example.com" in result
+    # The URL should not be split apart
+    assert "www.example.com" in result
+
+    # Duplicate 'www' adjacent to a URL (the www before the URL is part of it)
+    result = TranslatorService._clean_mechanical_errors(
+        "https://www.example.com"
+    )
+    assert result == "https://www.example.com"
+
+
+def test_contains_url():
+    """URL detection should correctly identify URLs in text."""
+    assert TranslatorService.contains_url("https://www.example.com/page")
+    assert TranslatorService.contains_url("http://gongkong.com/news/202603/449040.html")
+    assert TranslatorService.contains_url("www.example.com")
+    assert TranslatorService.contains_url("链接：https://www.gongkong.com/news/202603/449040.html")
+    assert TranslatorService.contains_url("Visit example.com for more info")
+    # No URL
+    assert not TranslatorService.contains_url("普通中文文本")
+    assert not TranslatorService.contains_url("Hello World without URL")
+
+
+def test_translate_url_label_line():
+    """URL-containing lines should only translate the Chinese label, preserving the URL."""
+    # Chinese label + URL
+    result = TranslatorService.translate_url_label_line(
+        "链接：https://www.gongkong.com/news/202603/449040.html",
+        glossary={},
+    )
+    assert "https://www.gongkong.com/news/202603/449040.html" in result
+    assert "链接" not in result
+    assert result.startswith("link")
+
+    # URL only (no Chinese) — should be unchanged
+    result = TranslatorService.translate_url_label_line(
+        "https://www.example.com",
+        glossary={},
+    )
+    assert result == "https://www.example.com"
+
+    # Chinese label with different colon style
+    result = TranslatorService.translate_url_label_line(
+        "网址：http://example.com",
+        glossary={},
+    )
+    assert "http://example.com" in result
+    assert "网址" not in result
+
+    # Text without URL should be returned unchanged
+    result = TranslatorService.translate_url_label_line("普通文本", glossary={})
+    assert result == "普通文本"

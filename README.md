@@ -23,27 +23,75 @@
 - **前端**: 原生 HTML/CSS/JS（无框架依赖）
 - **依赖**: 见 requirements.txt
 
-## 使用
+## 快速开始
 
-1. 安装依赖：
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 1. 环境要求
 
-2. 配置环境变量 (`.env`)：
-   ```
-   DEEPSEEK_API_KEY=your_key_here
-   DEEPSEEK_MODEL=deepseek-v4-flash
-   ```
+- Python 3.9+
+- pip
 
-3. 启动服务：
-   ```bash
-   python main.py
-   ```
+### 2. 安装依赖
 
-4. 打开浏览器访问 `http://localhost:8000`
+```bash
+pip install -r requirements.txt
+```
 
-> 如果使用自己的 API Key，可在界面中展开「自定义 API」面板填写，无需修改服务器配置。
+### 3. 配置环境变量
+
+项目使用 `.env` 文件管理配置。复制模板文件并根据自己的情况修改：
+
+```bash
+cp .env.example .env
+```
+
+然后编辑 `.env` 文件，填入必要的信息：
+
+```env
+# ===== 必填 =====
+# DeepSeek API Key（在 https://platform.deepseek.com 申请）
+DEEPSEEK_API_KEY=sk-your-api-key-here
+
+# ===== 可选 =====
+# 使用的模型名称（默认 deepseek-v4-flash）
+DEEPSEEK_MODEL=deepseek-v4-flash
+
+# 数据存储目录（默认为项目根目录下的 data/ 文件夹）
+# GLOSSARY_DIR=./data/glossaries
+# UPLOAD_DIR=./data/uploads
+# JOBS_DIR=./data/jobs
+```
+
+#### 如何获取 DeepSeek API Key？
+
+1. 访问 [DeepSeek 开放平台](https://platform.deepseek.com)
+2. 注册/登录账号
+3. 进入「API Keys」页面，点击「创建 API Key」
+4. 复制生成的 Key，粘贴到 `.env` 文件中的 `DEEPSEEK_API_KEY=`
+5. DeepSeek API 按量计费，新用户通常有免费额度
+
+### 4. 启动服务
+
+```bash
+python main.py
+```
+
+### 5. 访问工具
+
+打开浏览器访问 **http://localhost:8000**
+
+---
+
+### 使用其他 OpenAI 兼容的 API
+
+本工具不仅支持 DeepSeek，也支持任何 OpenAI 兼容接口（如 OpenAI 官方、Azure OpenAI、本地 Ollama 等）。
+
+**无需修改 `.env` 文件**，直接在网页界面上操作：
+
+1. 展开页面上的「**自定义 API**」面板
+2. 填入你的 API Key、Base URL 和模型名称
+3. 开始翻译即可
+
+> 界面配置仅在当前浏览器会话生效，不会影响服务器上的 `.env` 配置。
 
 ## 质量保障机制
 

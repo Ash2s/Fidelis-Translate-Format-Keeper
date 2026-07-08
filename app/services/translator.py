@@ -10,69 +10,16 @@ from app.config import settings
 # Common proper nouns used as fallback when user glossary doesn't cover them
 # ---------------------------------------------------------------------------
 COMMON_TERMS = {
-    '中海地产': 'China Overseas Land & Investment (COOP)',
-    '万科地产': 'Vanke Real Estate',
-    '景瑞控股': 'Jingrui Holdings',
-    '华润': 'China Resources',
-    '百安居': 'B&Q',
-    '旭辉': 'Xuhui Group',
-    '招商': 'China Merchants',
-    '上海地产': 'Shanghai Land',
-    '首旅如家': 'BTU Ruijia',
-    '锦江': 'Jinjiang Hotels',
-    '华住': 'Huazhu Hotels',
-    '格林': 'GreenTree Hotels',
-    '恒大': 'Evergrande',
-    '万科': 'Vanke',
-    '清华': 'Tsinghua University',
-    '长安大学': "Chang'an University",
-    '中欧国际商学院': 'China Europe International Business School (CEIBS)',
-    '香港技术研究院': 'Hong Kong Institute of Technology',
-    '中国智慧工程研究会': 'China Society of Intelligent Engineering',
-    '创意空间杯': 'Creative Space Cup',
-    '建筑声学': 'architectural acoustics',
+    # General-purpose fallback terms.  Extend or replace as needed for your domain.
+    '首席执行官': 'Chief Executive Officer',
+    '联合创始人': 'Co-Founder',
     '数字化转型': 'digital transformation',
-    '双碳': '"dual carbon"',
-    '碳达峰': 'carbon peak',
     '碳中和': 'carbon neutrality',
     '智慧城市': 'smart city',
-    '零碳建筑': 'zero-carbon buildings',
-    '装配式内装': 'prefabricated interior decoration',
     '工业化': 'industrialization',
-    '内装工业化': 'interior industrialization',
     '数字化': 'digitalization',
-    '数字化工具': 'digital tools',
-    '生物气候建筑': 'bioclimatic architecture',
-    '室内热舒适性': 'indoor thermal comfort',
-    '拓扑算法': 'topological algorithms',
-    '空间句法': 'spatial syntax',
-    '绿色决策支持系统': 'green decision-support system',
-    '系统架构师': 'technical architect',
-    '绿色建材': 'green building materials',
-    '装修': 'decoration',
-    '精装': 'finished interior',
-    '装配式建筑': 'prefabricated building',
-    '全装修': 'full-decoration',
-    'SI体系': 'SI structural system',
-    '现场湿作业': 'on-site wet work',
-    '无醛无毒': 'formaldehyde-free and non-toxic',
-    '资源回收再利用': 'recycling and reuse',
-    '装修垃圾': 'decoration waste',
-    '部品': 'components',
-    '首席执行官': 'Chief Executive Officer',
     '云平台': 'Cloud Platform',
     '注册建筑师': 'Registered Architect',
-    '国家高新技术企业': 'National High-Tech Enterprise',
-    '参编': 'participated in drafting',
-    '主编': 'editor-in-chief',
-    '第一负责人': 'Principal Investigator',
-    '联合创始人': 'Co-Founder',
-    '核心合伙人': 'Core Partner',
-    '客座教授': 'Visiting Professor',
-    '特聘专家': 'Distinguished Expert',
-    '评审专家': 'Review Expert',
-    '副研究员': 'Associate Researcher',
-    '卡瑞': 'CARR',
 }
 
 # ---------------------------------------------------------------------------
@@ -90,6 +37,19 @@ MONTH_NAMES = [
 _CHINESE_FULL_DATE_RE = re.compile(r'(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日')
 _CHINESE_YEAR_MONTH_RE = re.compile(r'(\d{4})\s*年\s*(\d{1,2})\s*月(?!\s*\d)')
 _CHINESE_MONTH_DAY_RE = re.compile(r'(?<!\d)(\d{1,2})\s*月\s*(\d{1,2})\s*日')
+
+# URL detection pattern — matches URLs (http/https/www or domain-like patterns
+# with .tld).  Used to protect URLs from being mangled by the translation model.
+# The character class [^\s\u4e00-\u9fff\uff00-\uffef] excludes whitespace,
+# CJK characters, and fullwidth punctuation so the URL match stops before
+# any Chinese label prefix.
+_URL_CHAR = r'[^\s\u4e00-\u9fff\uff00-\uffef]'
+_URL_LINE_RE = re.compile(
+    r'(?:https?://' + _URL_CHAR + r'+|www\.' + _URL_CHAR + r'+\.\w{2,}|[a-zA-Z0-9]' + _URL_CHAR + r'*\.(?:com|cn|net|org|edu|gov|io)\b' + _URL_CHAR + r'*)',
+    re.IGNORECASE,
+)
+# Common Chinese label prefixes that precede a URL
+_CN_URL_LABEL_RE = re.compile(r'(链接|网址|网址链接|网站|参考链接|来源|来源链接|参考)[:：\s]*')
 
 
 class TranslatorService:
@@ -113,6 +73,98 @@ class TranslatorService:
             ),
         )
         self._model = settings.DEEPSEEK_MODEL
+
+    # ------------------------------------------------------------------
+    # URL-aware translation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def contains_url(text: str) -> bool:
+        """Check whether *text* contains a URL pattern."""
+        return bool(_URL_LINE_RE.search(text))
+
+    @staticmethod
+    def translate_url_label_line(text: str, glossary: dict[str, str]) -> str:
+        """Translate a line that contains a URL.
+
+        Only translates the Chinese prefix/label before the URL and leaves
+        the URL itself untouched.  If the entire text is just a URL with no
+        Chinese characters, returns it unchanged.
+
+        Examples
+        --------
+        >>> translate_url_label_line("链接：https://www.example.com/news/202603/449040.html")
+        'link: https://www.example.com/news/202603/449040.html'
+        >>> translate_url_label_line("https://www.example.com")
+        'https://www.example.com'
+        """
+        if not text:
+            return text
+
+        # Find all URL matches
+        url_matches = list(_URL_LINE_RE.finditer(text))
+        if not url_matches:
+            return text
+
+        # If there's no Chinese character in the text, return as-is
+        if not re.search(r'[一-鿿]', text):
+            return text
+
+        # Map of common Chinese URL labels → English
+        label_map = {
+            '链接': 'link',
+            '网址链接': 'URL',
+            '网址': 'URL',
+            '网站': 'Website',
+            '参考链接': 'Reference link',
+            '来源链接': 'Source link',
+            '来源': 'Source',
+            '参考': 'Reference',
+        }
+
+        # Replace the Chinese label before the URL
+        result = text
+        # Sort by length descending so "网址链接" is matched before "网址"
+        for cn_label in sorted(label_map.keys(), key=len, reverse=True):
+            # Match the label followed by optional colon/space then the URL
+            pattern = re.escape(cn_label) + r'([：:]\s*)'
+            result = re.sub(pattern, label_map[cn_label] + r'\1', result, count=1)
+
+        # Re-find URL matches on the label-replaced text (positions may have
+        # shifted after replacing 链接→link etc.)
+        url_matches = list(_URL_LINE_RE.finditer(result))
+
+        # Apply glossary replacements to any remaining Chinese text that is
+        # NOT part of the URL — but only to segments outside URLs.
+        # Split text into URL and non-URL segments.
+        segments: list[tuple[str, bool]] = []  # (text, is_url)
+        last_end = 0
+        for m in url_matches:
+            if m.start() > last_end:
+                segments.append((result[last_end:m.start()], False))
+            segments.append((m.group(0), True))
+            last_end = m.end()
+        if last_end < len(result):
+            segments.append((result[last_end:], False))
+
+        # Merge common-terms replacement onto non-URL segments only
+        merged = dict(COMMON_TERMS)
+        merged.update(glossary)
+        sorted_terms = sorted(merged.keys(), key=len, reverse=True)
+
+        rebuilt = []
+        for seg_text, is_url in segments:
+            if is_url or not seg_text:
+                rebuilt.append(seg_text)
+                continue
+            # Apply glossary replacement to this non-URL segment
+            seg_result = seg_text
+            for term in sorted_terms:
+                pattern = re.escape(term)
+                seg_result = re.sub(pattern, merged[term], seg_result)
+            rebuilt.append(seg_result)
+
+        return ''.join(rebuilt)
 
     # ------------------------------------------------------------------
     # Glossary-aware replacement
@@ -223,6 +275,12 @@ class TranslatorService:
             Translated English text. If the API call fails, returns the
             original text prefixed with ``[Translation Error]: ``.
         """
+        # ── URL-aware shortcut ──
+        # If the text contains a URL, translate only the Chinese label/prefix
+        # and preserve the URL verbatim.  This prevents the model from
+        # "refusing to access the URL" or mangling it.
+        if self.contains_url(text):
+            return self.translate_url_label_line(text, glossary)
         client = self._make_client(api_key, base_url)
         active_model = model or self._model
 
@@ -285,10 +343,47 @@ class TranslatorService:
         regardless of whether the polish step runs."""
         if not text:
             return text
+
+        # ── Protect URL segments from being mangled ──
+        # Split text into URL and non-URL segments; only apply cleanup to
+        # non-URL segments.
+        url_matches = list(_URL_LINE_RE.finditer(text))
+        if url_matches:
+            segments: list[tuple[str, bool]] = []
+            last_end = 0
+            for m in url_matches:
+                if m.start() > last_end:
+                    segments.append((text[last_end:m.start()], False))
+                segments.append((m.group(0), True))
+                last_end = m.end()
+            if last_end < len(text):
+                segments.append((text[last_end:], False))
+
+            rebuilt = []
+            for seg_text, is_url in segments:
+                if is_url or not seg_text:
+                    rebuilt.append(seg_text)
+                    continue
+                rebuilt.append(TranslatorService._clean_segment(seg_text))
+            return ''.join(rebuilt)
+
+        return TranslatorService._clean_segment(text)
+
+    @staticmethod
+    def _clean_segment(text: str) -> str:
+        """Apply mechanical error cleanup to a non-URL text segment."""
+        if not text:
+            return text
         # 3+ consecutive identical chars (clear typo: "missspelled"→"mispelled")
         result = re.sub(r'(\w)\1{2,}', r'\1', text)
         # Duplicated whole word: "the the" or "has gradually has gradually"
-        result = re.sub(r'\b(\w+)\s+\1\b', r'\1', result)
+        # Skip URL-related tokens to avoid mangling domains
+        def _dedup_word(m):
+            word = m.group(1)
+            if word.lower() in ('www', 'http', 'https', 'ftp'):
+                return m.group(0)
+            return word
+        result = re.sub(r'\b(\w+)\s+\1\b', _dedup_word, result)
         # lowercase→UPPERCASE word boundary: "regionRelatively" → "region Relatively"
         result = re.sub(r'([a-z])([A-Z])', r'\1 \2', result)
         # Punctuation without trailing space: "climate.trend" → "climate. trend"
@@ -334,6 +429,13 @@ class TranslatorService:
         """
         if not text or len(text) < 10:
             return text
+
+        # ── Skip polishing for URL-containing lines ──
+        # The model may misinterpret URLs as requests to access them and
+        # return "I cannot access external URLs" messages.  URL lines have
+        # already been handled by translate_url_label_line.
+        if self.contains_url(text):
+            return self._clean_mechanical_errors(text)
 
         # ── Pre-clean mechanical errors ──
         pre_cleaned = self._clean_mechanical_errors(text)

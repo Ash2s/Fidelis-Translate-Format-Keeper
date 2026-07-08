@@ -387,13 +387,22 @@ body::after {
 
 #file-input { display: none; }
 
-/* ===== FILE LIST (post-upload) ===== */
-.file-list {
+/* ===== FILE LIST (post-upload, scrollable) ===== */
+.file-list-scroll {
   margin-top: 22px;
+  max-height: 200px;
+  overflow-y: auto;
   display: none;
   text-align: left;
+  padding-right: 4px;
 }
-.file-list.visible { display: block; animation: fadeSlide .35s var(--ease-out) both; }
+.file-list-scroll.visible {
+  display: block;
+  animation: fadeSlide .35s var(--ease-out) both;
+}
+.file-list {
+  text-align: left;
+}
 .file-list .summary {
   font-size: 12px;
   font-weight: 600;
@@ -401,6 +410,27 @@ body::after {
   margin-bottom: 8px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+  padding-bottom: 4px;
+}
+.upload-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  animation: fadeSlide .3s var(--ease-out) both;
+}
+.btn-danger {
+  border-color: var(--error-border);
+  color: var(--error-fg);
+}
+.btn-danger:hover {
+  border-color: var(--error-fg);
+  background: var(--error-bg);
+  box-shadow: 0 0 0 3px var(--error-border);
 }
 .file-item {
   display: flex;
@@ -443,6 +473,22 @@ body::after {
   text-align: center;
   margin-bottom: 20px;
   animation: fadeSlide .5s var(--ease-out) both .18s;
+}
+/* COLT watermark — sits below results, semi-transparent, non-interactive */
+.colt-watermark {
+  text-align: center;
+  margin-top: 48px;
+  margin-bottom: 12px;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.25;
+  position: relative;
+  z-index: 0;
+}
+.colt-watermark img {
+  max-width: 220px;
+  height: auto;
+  display: inline-block;
 }
 .btn-translate {
   position: relative;
@@ -663,6 +709,11 @@ body::after {
   animation: fadeSlide .45s var(--ease-out) both;
 }
 .results-section.hidden { display: none; }
+.results-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 
 .results-header {
   display: flex;
@@ -1151,10 +1202,16 @@ body::after {
   <div class="upload-zone" id="upload-zone">
     <div class="icon-wrap">↑</div>
     <div class="main-text">拖拽 .docx 文件到此处，或点击添加</div>
-    <p class="sub-text">支持批量上传，每份文档独立翻译，保留原始排版</p>
+    <p class="sub-text">支持分批添加，可多次上传，保留原始排版</p>
     <span class="format-tag">.docx 格式</span>
     <input type="file" id="file-input" accept=".docx" multiple>
-    <div class="file-list" id="file-list"></div>
+    <div class="file-list-scroll" id="file-list-scroll">
+      <div class="file-list" id="file-list"></div>
+    </div>
+    <div class="upload-actions" id="upload-actions" style="display:none;">
+      <button class="btn btn-small" id="btn-add-more">继续添加</button>
+      <button class="btn btn-small btn-danger" id="btn-clear-files">清除全部</button>
+    </div>
   </div>
 
   <!-- Translate Button -->
@@ -1193,7 +1250,7 @@ body::after {
         <span class="subtitle" id="results-count"></span>
       </div>
     </div>
-    <div id="results-list"></div>
+    <div id="results-list" class="results-scroll"></div>
 
     <!-- Revision Section -->
     <div class="revision-section">
@@ -1205,6 +1262,11 @@ body::after {
         <button class="btn-retranslate" id="btn-retranslate">重新翻译</button>
       </div>
     </div>
+  </div>
+
+  <!-- COLT Watermark — below results, above container bottom -->
+  <div class="colt-watermark">
+    <img src="/static/COLT.png" alt="COLT" draggable="false" onerror="this.style.display='none'">
   </div>
 
 </div>
@@ -1299,7 +1361,8 @@ btnApiTest.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cfg),
     });
-    const data = await res.json();
+    let data;
+    try { data = await res.json(); } catch (_) { throw new Error(`服务器错误 (HTTP ${res.status})`); }
     if (data.status === 'ok') {
       apiTestResult.textContent = '✓ ' + data.message;
       apiTestResult.className = 'result success';
@@ -1353,7 +1416,11 @@ btnUploadGlossary.addEventListener('click', () => {
     formData.append('file', file);
     try {
       const res = await fetch(`${API_BASE}/upload/glossary`, { method: 'POST', body: formData });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '上传失败'); }
+      if (!res.ok) {
+        let errMsg = `上传失败 (HTTP ${res.status})`;
+        try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+        throw new Error(errMsg);
+      }
       const data = await res.json();
       glossaryId = data.glossary_id;
       glossaryStatus.textContent = `已就绪：${data.term_count} 条术语`;
@@ -1403,11 +1470,16 @@ async function handleFiles(files) {
   for (const f of validFiles) formData.append('files', f);
   try {
     const res = await fetch(`${API_BASE}/upload/files`, { method: 'POST', body: formData });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '上传失败'); }
+    if (!res.ok) {
+      let errMsg = `上传失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
     const data = await res.json();
-    fileIds = data.file_ids;
-    uploadedFiles = validFiles;
-    renderFileList(validFiles);
+    // Append to existing lists (batch upload support)
+    fileIds = fileIds.concat(data.file_ids);
+    uploadedFiles = uploadedFiles.concat(validFiles);
+    renderFileList(uploadedFiles);
     hideError();
     enableTranslateIfReady();
   } catch (err) {
@@ -1417,16 +1489,24 @@ async function handleFiles(files) {
 
 function renderFileList(files) {
   fileListEl.innerHTML = '';
+  const fileScroll = document.getElementById('file-list-scroll');
+  const uploadActions = document.getElementById('upload-actions');
+  if (files.length === 0) {
+    fileScroll.classList.remove('visible');
+    uploadActions.style.display = 'none';
+    return;
+  }
   const summary = document.createElement('div');
   summary.className = 'summary';
   summary.textContent = `已选 ${files.length} 个文件待翻译`;
   fileListEl.appendChild(summary);
-  fileListEl.classList.add('visible');
+  fileScroll.classList.add('visible');
+  uploadActions.style.display = 'flex';
   Array.from(files).forEach((f, i) => {
     const div = document.createElement('div');
     div.className = 'file-item';
-    div.style.animationDelay = (i * 0.06) + 's';
-    div.innerHTML = '<span class="name">' + f.name + '</span>' +
+    div.style.animationDelay = (i * 0.04) + 's';
+    div.innerHTML = '<span class="name">' + escapeHtml(f.name) + '</span>' +
       '<span class="remove" data-index="' + i + '">✕</span>';
     div.querySelector('.remove').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1437,20 +1517,32 @@ function renderFileList(files) {
 }
 
 function removeFile(index) {
-  const newFiles = Array.from(uploadedFiles).filter((_, i) => i !== index);
+  const newFiles = uploadedFiles.filter((_, i) => i !== index);
   const newIds = fileIds.filter((_, i) => i !== index);
+  uploadedFiles = newFiles;
+  fileIds = newIds;
   if (newFiles.length === 0) {
-    fileIds = [];
-    uploadedFiles = [];
-    fileListEl.classList.remove('visible');
+    renderFileList([]);
     btnTranslate.disabled = !glossaryId;
     return;
   }
-  uploadedFiles = newFiles;
-  fileIds = newIds;
   renderFileList(newFiles);
   enableTranslateIfReady();
 }
+
+// Clear all uploaded files
+document.getElementById('btn-clear-files').addEventListener('click', () => {
+  fileIds = [];
+  uploadedFiles = [];
+  renderFileList([]);
+  enableTranslateIfReady();
+});
+
+// Add more files — trigger file input without clearing
+document.getElementById('btn-add-more').addEventListener('click', (e) => {
+  e.stopPropagation();
+  fileInput.click();
+});
 
 // Translate
 btnTranslate.addEventListener('click', async () => {
@@ -1472,7 +1564,11 @@ btnTranslate.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bodyData)
     });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '翻译启动失败'); }
+    if (!res.ok) {
+      let errMsg = `翻译启动失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
     const data = await res.json();
     currentJobId = data.job_id;
     pollStatus(currentJobId);
@@ -1567,8 +1663,9 @@ async function pollStatus(jobId) {
   const interval = setInterval(async () => {
     try {
       const res = await fetch(`${API_BASE}/status/${jobId}`);
-      if (!res.ok) { clearInterval(interval); throw new Error('状态检查失败'); }
-      const data = await res.json();
+      if (!res.ok) { clearInterval(interval); showError(`状态检查失败 (HTTP ${res.status})`); return; }
+      let data;
+      try { data = await res.json(); } catch (_) { clearInterval(interval); showError('状态检查失败：服务器返回了无效响应'); return; }
       if (data.status === 'completed') {
         clearInterval(interval);
         updateProgressRing(100);
@@ -1708,14 +1805,20 @@ btnRetranslate.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(revBody)
     });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '重新翻译失败'); }
+    if (!res.ok) {
+      let errMsg = `重新翻译失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
     const data = await res.json();
     currentJobId = data.job_id;
 
     const interval = setInterval(async () => {
       try {
         const r = await fetch(`${API_BASE}/status/${currentJobId}`);
-        const d = await r.json();
+        if (!r.ok) { clearInterval(interval); showError(`状态检查失败 (HTTP ${r.status})`); return; }
+        let d;
+        try { d = await r.json(); } catch (_) { clearInterval(interval); showError('状态检查失败：服务器返回了无效响应'); return; }
         if (d.status === 'completed') {
           clearInterval(interval);
           progressFiles.querySelectorAll('.progress-file').forEach(el => {
@@ -1816,7 +1919,11 @@ function renderParagraph(para) {
 async function openPreview(jobId, fileId) {
   try {
     const res = await fetch(`${API_BASE}/preview/${jobId}?file_id=${fileId}`);
-    if (!res.ok) throw new Error('预览加载失败');
+    if (!res.ok) {
+      let errMsg = `预览加载失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
     const data = await res.json();
     const preview = data.previews[0];
     if (!preview) { showError('未找到预览内容'); return; }

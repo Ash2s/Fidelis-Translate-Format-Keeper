@@ -7,8 +7,5 @@ server.log
 *.log
 /tmp/
 
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
+# exclude negations (files we DO want to track)
 !.env.example
