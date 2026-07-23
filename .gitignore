@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/
+server.log
+*.log
+/tmp/
+测试文件用/
+
+# exclude negations (files we DO want to track)
+!.env.example

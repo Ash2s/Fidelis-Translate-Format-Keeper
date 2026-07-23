@@ -1,0 +1,1972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Immigration Translation Tool — 文件翻译工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   DESIGN SYSTEM — Immigration Translation Tool v2
+   Warm amber editorial. Brass-branded utility.
+   Serif for ceremony, sans for work.
+   ================================================================ */
+:root {
+  --bg:           oklch(96% 0.008 70);
+  --bg-grid:      oklch(0% 0 0 / 0.018);
+  --surface:      oklch(100% 0.004 75);
+  --surface-raised: oklch(99% 0.003 75);
+  --surface-alt:  oklch(97% 0.005 75);
+  --brass:        oklch(55% 0.095 65);
+  --brass-light:  oklch(66% 0.075 70);
+  --brass-dark:   oklch(42% 0.10 60);
+  --brass-glow:   oklch(55% 0.095 65 / 0.18);
+  --brass-subtle: oklch(55% 0.095 65 / 0.07);
+  --border:       oklch(88% 0.006 70);
+  --border-strong: oklch(78% 0.008 70);
+  --border-accent: oklch(55% 0.095 65 / 0.25);
+  --fg:           oklch(18% 0.015 60);
+  --fg-secondary: oklch(46% 0.015 65);
+  --fg-tertiary:  oklch(62% 0.01 70);
+  --fg-on-brass:  oklch(98% 0.002 85);
+  --error-bg:     oklch(92% 0.02 30);
+  --error-fg:     oklch(42% 0.07 30);
+  --error-border: oklch(42% 0.07 30 / 0.2);
+  --success-bg:   oklch(92% 0.018 140);
+  --success-fg:   oklch(38% 0.065 140);
+  --shadow-sm:    0 1px 3px oklch(0% 0 0 / 0.04), 0 1px 2px oklch(0% 0 0 / 0.03);
+  --shadow-md:    0 4px 16px oklch(0% 0 0 / 0.04), 0 2px 4px oklch(0% 0 0 / 0.03);
+  --shadow-lg:    0 12px 40px oklch(0% 0 0 / 0.06), 0 4px 12px oklch(0% 0 0 / 0.04);
+  --radius-sm:    6px;
+  --radius:       12px;
+  --radius-lg:    18px;
+  --radius-xl:    24px;
+  --ease-out:     cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --font-serif:   'DM Serif Display', 'Playfair Display', Georgia, serif;
+  --font-sans:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+::selection { background: var(--brass-glow); color: var(--brass-dark); }
+
+body {
+  background: var(--bg);
+  background-image:
+    repeating-linear-gradient(45deg,
+      transparent 0, transparent 39px,
+      var(--bg-grid) 39px, var(--bg-grid) 40px,
+      transparent 40px, transparent 79px
+    ),
+    repeating-linear-gradient(-45deg,
+      transparent 0, transparent 39px,
+      var(--bg-grid) 39px, var(--bg-grid) 40px,
+      transparent 40px, transparent 79px
+    );
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Vignette */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% -10%, transparent 40%, oklch(0% 0 0 / 0.035) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== CONTAINER ===== */
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px 28px 96px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== HEADER ===== */
+.app-header {
+  text-align: center;
+  margin-bottom: 44px;
+  animation: fadeSlide .55s var(--ease-out) both;
+}
+.app-header .title-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+.app-header .title-line .rule {
+  flex: 0 0 56px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), var(--border-strong));
+}
+.app-header .title-line .rule:last-child {
+  background: linear-gradient(270deg, var(--border), var(--border-strong));
+}
+.app-header .title-en {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(26px, 5vw, 44px);
+  letter-spacing: 0.015em;
+  color: var(--fg);
+  line-height: 1.12;
+}
+.app-header .title-en .brass {
+  color: var(--brass);
+  font-style: italic;
+}
+.app-header .title-cn {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-tertiary);
+  letter-spacing: 0.35em;
+  margin-top: 14px;
+  text-transform: uppercase;
+}
+.app-header .title-cn span {
+  display: inline-block;
+  padding: 0 8px;
+}
+.app-header .title-cn .diamond {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  vertical-align: middle;
+  margin: 0 4px;
+}
+.app-header .title-cn .diamond::after {
+  content: '';
+  width: 4px; height: 4px;
+  border: 1.5px solid var(--brass-light);
+  transform: rotate(45deg);
+  display: block;
+}
+
+/* ===== STATUS BAR (glossary + api on one line) ===== */
+.status-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  animation: fadeSlide .5s var(--ease-out) both .06s;
+}
+.status-bar .sb-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+  transition: box-shadow .3s var(--ease-out);
+}
+.status-bar .sb-item:hover {
+  box-shadow: var(--shadow-sm);
+}
+.status-bar .sb-label {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brass-dark);
+  flex-shrink: 0;
+}
+.status-bar .sb-value {
+  font-size: 13px;
+  color: var(--fg-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.status-bar .sb-value.active {
+  color: var(--fg-secondary);
+  font-weight: 500;
+}
+.status-bar .sb-action {
+  flex-shrink: 0;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--fg-secondary);
+  padding: 6px 16px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .25s var(--ease-out);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.btn:hover {
+  border-color: var(--brass-light);
+  color: var(--brass-dark);
+  background: var(--brass-subtle);
+  box-shadow: 0 0 0 3px var(--brass-glow);
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: var(--brass);
+  color: var(--fg-on-brass);
+  border-color: var(--brass);
+  box-shadow: 0 2px 8px var(--brass-glow);
+}
+.btn-primary:hover {
+  background: var(--brass-dark);
+  border-color: var(--brass-dark);
+  color: var(--fg-on-brass);
+  box-shadow: 0 4px 16px var(--brass-glow);
+}
+.btn-small {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+/* ===== API CONFIG MODAL ===== */
+.api-modal-content { max-width: 520px; }
+.api-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.api-modal-body .field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.api-modal-body .field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-tertiary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.api-modal-body .field input {
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  background: var(--surface-alt);
+  color: var(--fg);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.api-modal-body .field input:focus {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 3px var(--brass-glow);
+  background: var(--surface);
+}
+.api-modal-body .field input::placeholder {
+  color: var(--fg-tertiary);
+  font-size: 13px;
+}
+.api-modal-body .field input:disabled { opacity: .4; cursor: not-allowed; }
+.api-modal-body .field-row {
+  display: flex;
+  gap: 10px;
+}
+.api-modal-body .field-row .field { flex: 1; min-width: 0; }
+.api-modal-body .actions {
+  display: flex;
+  gap: 10px;
+}
+.api-modal-body .actions .btn { flex: 1; justify-content: center; }
+.api-modal-body .result {
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  display: none;
+  line-height: 1.5;
+}
+.api-modal-body .result.success { display: block; background: var(--success-bg); color: var(--success-fg); }
+.api-modal-body .result.error { display: block; background: var(--error-bg); color: var(--error-fg); }
+
+/* ===== UPLOAD ZONE ===== */
+.upload-zone {
+  position: relative;
+  padding: 52px 28px 40px;
+  text-align: center;
+  cursor: pointer;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  margin-bottom: 20px;
+  transition: all .4s var(--ease-out);
+  animation: fadeSlide .5s var(--ease-out) both .14s;
+}
+.upload-zone:hover {
+  border-color: var(--brass-light);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-md);
+}
+.upload-zone.dragover {
+  border-color: var(--brass);
+  background: oklch(96% 0.01 70);
+  box-shadow: inset 0 0 0 1.5px var(--brass-accent, var(--brass-glow)), var(--shadow-lg);
+  transform: scale(1.012);
+}
+.upload-zone .icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brass), var(--brass-dark));
+  color: var(--fg-on-brass);
+  font-size: 24px;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 20px var(--brass-glow);
+  transition: transform .4s var(--ease-spring), box-shadow .4s var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.upload-zone .icon-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, oklch(100% 0 0 / 0.18) 30%, transparent 60%);
+  pointer-events: none;
+}
+.upload-zone:hover .icon-wrap {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 28px var(--brass-glow);
+}
+.upload-zone .main-text {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--fg);
+  margin-bottom: 6px;
+  letter-spacing: 0.01em;
+}
+.upload-zone .sub-text {
+  font-size: 14px;
+  color: var(--fg-tertiary);
+  line-height: 1.5;
+}
+.upload-zone .format-tag {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 3px 14px;
+  border-radius: 20px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-tertiary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.upload-zone.dragover .format-tag {
+  background: var(--brass-glow);
+  border-color: var(--brass-light);
+  color: var(--brass-dark);
+}
+
+
+/* ===== FILE LIST (post-upload, scrollable) ===== */
+.file-list-scroll {
+  margin-top: 22px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+  text-align: left;
+  padding-right: 4px;
+}
+.file-list-scroll.visible {
+  display: block;
+  animation: fadeSlide .35s var(--ease-out) both;
+}
+.file-list {
+  text-align: left;
+}
+.file-list .summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-secondary);
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+  padding-bottom: 4px;
+}
+.upload-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  animation: fadeSlide .3s var(--ease-out) both;
+}
+.btn-danger {
+  border-color: var(--error-border);
+  color: var(--error-fg);
+}
+.btn-danger:hover {
+  border-color: var(--error-fg);
+  background: var(--error-bg);
+  box-shadow: 0 0 0 3px var(--error-border);
+}
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  transition: all .25s var(--ease-out);
+}
+.file-item:hover {
+  border-color: var(--brass-light);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.file-item .name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-item .remove {
+  color: var(--fg-tertiary);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color .2s, background .2s;
+}
+.file-item .remove:hover { color: var(--error-fg); background: var(--error-bg); }
+
+/* ===== TRANSLATE BUTTON ===== */
+.translate-wrap {
+  text-align: center;
+  margin-bottom: 20px;
+  animation: fadeSlide .5s var(--ease-out) both .18s;
+}
+/* COLT watermark — sits below results, semi-transparent, non-interactive */
+.colt-watermark {
+  text-align: center;
+  margin-top: 48px;
+  margin-bottom: 12px;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.25;
+  position: relative;
+  z-index: 0;
+}
+.colt-watermark img {
+  max-width: 220px;
+  height: auto;
+  display: inline-block;
+}
+.btn-translate {
+  position: relative;
+  background: linear-gradient(135deg, var(--brass), var(--brass-dark));
+  color: var(--fg-on-brass);
+  border: none;
+  padding: 17px 52px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  border-radius: 50px;
+  font-family: var(--font-sans);
+  transition: all .4s var(--ease-out);
+  text-transform: uppercase;
+  box-shadow: 0 4px 24px var(--brass-glow);
+  overflow: hidden;
+  line-height: 1;
+}
+.btn-translate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 30%, oklch(100% 0 0 / 0.12) 50%, transparent 70%);
+  transition: transform .5s var(--ease-out);
+  transform: translateX(-100%) skewX(-15deg);
+}
+.btn-translate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 36px var(--brass-glow);
+  background: linear-gradient(135deg, var(--brass-light), var(--brass));
+}
+.btn-translate:hover::before { transform: translateX(100%) skewX(-15deg); }
+.btn-translate:active { transform: translateY(0) scale(0.98); box-shadow: 0 4px 16px var(--brass-glow); }
+.btn-translate:disabled {
+  opacity: .3;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.btn-translate:disabled::before { display: none; }
+.btn-translate:not(:disabled) {
+  animation: readyPulse 3s var(--ease-out) infinite;
+}
+@keyframes readyPulse {
+  0%, 100% { box-shadow: 0 4px 24px var(--brass-glow); }
+  50% { box-shadow: 0 4px 40px var(--brass-glow), 0 0 0 5px oklch(55% 0.095 65 / 0.08); }
+}
+
+/* ===== PROGRESS SECTION ===== */
+.progress-section {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.progress-section.visible {
+  display: block;
+  animation: fadeSlide .45s var(--ease-out) both;
+}
+
+/* Metrics row */
+.progress-metrics {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.progress-ring-wrap {
+  position: relative;
+  width: 64px; height: 64px;
+  flex-shrink: 0;
+}
+.progress-ring-wrap svg { display: block; transform: rotate(-90deg); }
+.progress-ring-bg {
+  fill: none; stroke: var(--border); stroke-width: 4;
+}
+.progress-ring-fill {
+  fill: none; stroke: url(#brass-gradient); stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-dasharray: 182.2;
+  stroke-dashoffset: 182.2;
+  transition: stroke-dashoffset .7s var(--ease-out);
+}
+.progress-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--brass-dark);
+}
+.progress-overview { flex: 1; min-width: 0; }
+.progress-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--fg);
+  margin-bottom: 3px;
+}
+.progress-detail {
+  font-size: 13px;
+  color: var(--fg-tertiary);
+}
+
+/* File rows */
+.progress-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.progress-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  transition: all .4s var(--ease-out);
+}
+.progress-file.pf-pending { color: var(--fg-tertiary); opacity: .45; }
+.progress-file.pf-active {
+  color: var(--fg);
+  background: var(--brass-subtle);
+}
+.progress-file.pf-done { color: var(--fg-secondary); }
+.progress-file .pf-icon {
+  width: 22px; height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  transition: all .4s var(--ease-out);
+}
+.progress-file.pf-pending .pf-icon { border-color: var(--border-strong); }
+.progress-file.pf-active .pf-icon {
+  border-color: var(--brass);
+  animation: pfPulse 1.6s var(--ease-out) infinite;
+}
+.progress-file.pf-active .pf-icon::after {
+  content: '';
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--brass);
+  animation: pfBlip 1.6s var(--ease-out) infinite;
+}
+.progress-file.pf-done .pf-icon {
+  border-color: var(--success-fg);
+  background: var(--success-bg);
+}
+.progress-file.pf-done .pf-icon::after {
+  content: '';
+  width: 5px; height: 9px;
+  border: solid var(--success-fg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-top: -2px;
+}
+.progress-file .pf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@keyframes pfPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--brass-glow); }
+  50% { box-shadow: 0 0 0 8px oklch(55% 0.095 65 / 0); }
+}
+@keyframes pfBlip {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .3; }
+}
+
+/* Status bar */
+.progress-status-bar {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.progress-status-bar .status-msg { color: var(--fg-tertiary); flex: 1; }
+.progress-status-bar .status-msg .highlight { color: var(--brass-dark); font-weight: 600; }
+.progress-status-bar .status-percent {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--brass-dark);
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+@keyframes dots { 0%,20%{opacity:0} 40%{opacity:1} 60%,100%{opacity:0} }
+.progress-status-bar .status-msg .dot-anim {
+  display: inline-block;
+  animation: dots 1.4s ease infinite;
+}
+.progress-status-bar .status-msg .dot-anim:nth-child(2) { animation-delay: .2s; }
+.progress-status-bar .status-msg .dot-anim:nth-child(3) { animation-delay: .4s; }
+
+/* ===== RESULTS ===== */
+.results-section {
+  padding: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  animation: fadeSlide .45s var(--ease-out) both;
+}
+.results-section.hidden { display: none; }
+.results-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.results-header .title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brass-dark);
+}
+.results-header .title::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  border: 1.5px solid var(--brass);
+  transform: rotate(45deg);
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.results-header .subtitle {
+  font-size: 13px;
+  color: var(--fg-tertiary);
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  transition: all .25s var(--ease-out);
+  animation: fadeSlide .4s var(--ease-out) both;
+}
+.result-item:hover {
+  border-color: var(--brass-light);
+  box-shadow: var(--shadow-sm);
+}
+.result-item .info { flex: 1; min-width: 0; }
+.result-item .filename {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+.result-item .meta {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.result-item .actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+.badge-success { background: var(--success-bg); color: var(--success-fg); }
+.badge-error   { background: var(--error-bg);   color: var(--error-fg); }
+
+.revision-badge {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brass-dark);
+  background: var(--brass-subtle);
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--fg-secondary);
+  padding: 6px 16px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .25s var(--ease-out);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+.btn-download:hover {
+  border-color: var(--brass-light);
+  color: var(--brass-dark);
+  background: var(--brass-subtle);
+  box-shadow: 0 0 0 3px var(--brass-glow);
+}
+.btn-download:active { transform: scale(0.97); }
+.btn-download.btn-preview { text-transform: none; letter-spacing: 0; }
+
+/* ===== STATUS ICON ===== */
+.status-icon {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .5s var(--ease-out);
+  position: relative;
+}
+.status-icon .check-bg {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: var(--success-bg);
+  transform: scale(0);
+  transition: transform .4s var(--ease-spring);
+}
+.status-icon.checked { border-color: var(--success-fg); }
+.status-icon.checked .check-bg { transform: scale(1); }
+.status-icon svg { width: 20px; height: 20px; position: relative; z-index: 1; }
+.status-icon .check-path {
+  fill: none; stroke: var(--success-fg); stroke-width: 3;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 30; stroke-dashoffset: 30;
+  transition: stroke-dashoffset .45s var(--ease-out) .12s;
+}
+.status-icon.checked .check-path { stroke-dashoffset: 0; }
+
+/* ===== ERROR TOAST ===== */
+.toast-error {
+  display: none;
+  background: var(--error-bg);
+  color: var(--error-fg);
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  animation: fadeSlide .3s var(--ease-out) both;
+}
+.toast-error.visible { display: block; }
+
+/* ===== REVISION SECTION ===== */
+.revision-section {
+  margin-top: 24px;
+  padding: 24px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: all .25s var(--ease-out);
+}
+.revision-section:focus-within {
+  border-color: var(--brass-light);
+  box-shadow: 0 0 0 4px var(--brass-subtle);
+}
+.revision-section .title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brass-dark);
+  margin-bottom: 6px;
+}
+.revision-section .hint {
+  font-size: 13px;
+  color: var(--fg-tertiary);
+  margin-bottom: 14px;
+}
+.revision-section textarea {
+  width: 100%;
+  height: 84px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  resize: vertical;
+  background: var(--surface);
+  color: var(--fg);
+  outline: none;
+  transition: border-color .25s, box-shadow .25s;
+  line-height: 1.6;
+}
+.revision-section textarea:focus {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 4px var(--brass-subtle);
+}
+.revision-section textarea::placeholder { color: var(--fg-tertiary); }
+.revision-section .revision-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+.revision-section .note { color: var(--fg-tertiary); font-size: 12px; }
+
+.btn-retranslate {
+  background: var(--brass);
+  color: var(--fg-on-brass);
+  border: none;
+  padding: 10px 28px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  border-radius: 50px;
+  font-family: var(--font-sans);
+  transition: all .3s var(--ease-out);
+  text-transform: uppercase;
+  box-shadow: 0 2px 12px var(--brass-glow);
+  line-height: 1;
+}
+.btn-retranslate:hover {
+  background: var(--brass-dark);
+  box-shadow: 0 4px 20px var(--brass-glow);
+  transform: translateY(-1px);
+}
+.btn-retranslate:active { transform: translateY(0) scale(0.98); }
+
+/* ===== PREVIEW MODAL ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: oklch(0% 0 0 / 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn .25s ease both;
+}
+.modal-overlay.visible { display: flex; }
+.modal-content {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  max-width: 760px;
+  width: 100%;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg), 0 24px 80px oklch(0% 0 0 / 0.2);
+  border: 1px solid var(--border);
+  animation: fadeSlide .3s var(--ease-out) both;
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.modal-header .title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--brass-dark);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.modal-header .title::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  border: 1.5px solid var(--brass);
+  transform: rotate(45deg);
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--fg-tertiary);
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  transition: all .2s;
+  line-height: 1;
+}
+.modal-close:hover { color: var(--fg); background: var(--surface-alt); }
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--fg);
+}
+.modal-body .file-header {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--brass);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-body .file-header:not(:first-child) {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.preview-para { margin-bottom: 8px; }
+.preview-para.preview-empty { height: .8em; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brass-light); }
+
+/* SVG defs hidden in body */
+.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ===== KEYFRAMES ===== */
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 820px) {
+  .container { padding: 40px 24px 72px; }
+  .app-header { margin-bottom: 36px; }
+  .app-header .title-en { font-size: 30px; }
+  .app-header .title-line .rule { flex-basis: 32px; }
+  .status-bar { flex-direction: column; gap: 8px; }
+  .upload-zone { padding: 44px 24px 34px; }
+  .upload-zone .icon-wrap { width: 52px; height: 52px; font-size: 20px; }
+  .upload-zone .main-text { font-size: 16px; }
+  .btn-translate { padding: 16px 44px; font-size: 14px; }
+}
+
+@media (max-width: 600px) {
+  .container { padding: 32px 18px 56px; }
+  .app-header .title-en { font-size: 24px; }
+  .upload-zone { padding: 36px 18px 28px; border-radius: var(--radius-lg); }
+  .upload-zone .icon-wrap { width: 46px; height: 46px; font-size: 18px; margin-bottom: 14px; }
+  .upload-zone .main-text { font-size: 15px; }
+  .btn-translate { padding: 14px 36px; font-size: 13px; width: 100%; }
+  .results-section { padding: 22px; }
+  .result-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .result-item .actions { align-self: flex-end; }
+  .progress-section { padding: 22px; border-radius: var(--radius); }
+  .progress-metrics { gap: 14px; }
+  .revision-section { padding: 18px; }
+  .glossary-bar .actions .name { display: none !important; }
+}
+
+@media (max-width: 420px) {
+  .container { padding: 24px 14px 48px; }
+  .app-header .title-en { font-size: 20px; }
+  .app-header .title-cn { font-size: 11px; letter-spacing: 0.2em; }
+  .upload-zone { padding: 28px 14px 24px; border-radius: var(--radius); }
+  .upload-zone .icon-wrap { width: 40px; height: 40px; font-size: 16px; }
+  .upload-zone .main-text { font-size: 14px; }
+  .upload-zone .sub-text { font-size: 13px; }
+  .btn-translate { font-size: 12px; padding: 12px 24px; letter-spacing: 0.1em; }
+  .progress-metrics { flex-direction: column; gap: 12px; }
+  .results-header { flex-direction: column; gap: 6px; align-items: flex-start; }
+  .api-modal-body .field-row { flex-direction: column; gap: 10px; }
+  .api-modal-body .actions { flex-direction: column; }
+  .modal-content { max-height: 90vh; border-radius: var(--radius); }
+  .modal-body { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- SVG defs for gradient ring — OKLCH values inline (SVG can't read CSS vars) -->
+<svg class="svg-defs" aria-hidden="true">
+  <defs>
+    <linearGradient id="brass-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="oklch(66% 0.075 70)" />
+      <stop offset="100%" stop-color="oklch(42% 0.10 60)" />
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="container">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="title-line">
+      <span class="rule"></span>
+      <h1 class="title-en"><span class="brass">Immigration</span> Translation</h1>
+      <span class="rule"></span>
+    </div>
+    <div class="title-cn">
+      <span>文件翻译工作台</span>
+      <span class="diamond"></span>
+      <span>移民材料专用</span>
+    </div>
+  </header>
+
+  <!-- Error toast -->
+  <div class="toast-error" id="toast-error"></div>
+
+  <!-- Status Bar: Glossary + API Settings inline -->
+  <div class="status-bar">
+    <div class="sb-item" id="glossary-bar">
+      <span class="sb-label">术语表</span>
+      <span class="sb-value" id="glossary-status">未上传</span>
+      <span class="sb-value active" id="glossary-name" style="display:none;"></span>
+      <span class="sb-action">
+        <button class="btn btn-small" id="btn-change-glossary" style="display:none;">更换</button>
+        <button class="btn btn-small" id="btn-upload-glossary">上传</button>
+      </span>
+    </div>
+    <div class="sb-item" id="api-quick-status" style="cursor:pointer;">
+      <span class="sb-label">API</span>
+      <span class="sb-value" id="api-quick-label">未配置</span>
+      <span class="sb-action">
+        <button class="btn btn-small" id="btn-api-quick">配置</button>
+      </span>
+    </div>
+  </div>
+
+  <!-- API Config Modal -->
+  <div class="modal-overlay" id="api-modal">
+    <div class="modal-content api-modal-content">
+      <div class="modal-header">
+        <span class="title">API 配置</span>
+        <button class="modal-close" id="api-modal-close">✕</button>
+      </div>
+      <div class="modal-body api-modal-body">
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="api-key" placeholder="sk-..." autocomplete="off">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>接口地址</label>
+            <input type="text" id="api-base-url" value="https://api.deepseek.com" placeholder="https://api.deepseek.com">
+          </div>
+          <div class="field">
+            <label>模型名称</label>
+            <input type="text" id="api-model" value="deepseek-v4-flash" placeholder="deepseek-v4-flash">
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn" id="btn-api-test">测试连接</button>
+          <button class="btn btn-primary" id="btn-api-confirm">确认</button>
+        </div>
+        <div class="result" id="api-test-result"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone" id="upload-zone">
+    <div class="icon-wrap">↑</div>
+    <div class="main-text">拖拽 .docx 文件到此处，或点击添加</div>
+    <p class="sub-text">支持分批添加，可多次上传，保留原始排版</p>
+    <span class="format-tag">.docx 格式</span>
+    <div class="file-list-scroll" id="file-list-scroll">
+      <div class="file-list" id="file-list"></div>
+    </div>
+    <div class="upload-actions" id="upload-actions" style="display:none;">
+      <button class="btn btn-small" id="btn-add-more">继续添加</button>
+      <button class="btn btn-small btn-danger" onclick="clearAllFiles(event)" id="btn-clear-files">清除全部</button>
+    </div>
+  </div>
+
+  <!-- TRANSLATE-V2-FIXED-2026-07-22 -->
+  <div class="translate-wrap">
+    <button class="btn-translate" id="btn-translate" disabled>开始翻译</button>
+  </div>
+
+  <!-- Progress Section -->
+  <div class="progress-section" id="progress-section">
+    <div class="progress-metrics">
+      <div class="progress-ring-wrap">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="progress-ring-bg" cx="32" cy="32" r="29"/>
+          <circle class="progress-ring-fill" cx="32" cy="32" r="29" id="progress-ring"/>
+        </svg>
+        <div class="progress-pct" id="progress-pct">0%</div>
+      </div>
+      <div class="progress-overview">
+        <div class="progress-title" id="progress-title">翻译处理中</div>
+        <div class="progress-detail" id="progress-detail">正在准备...</div>
+      </div>
+    </div>
+    <div class="progress-files" id="progress-files"></div>
+    <div class="progress-status-bar">
+      <span class="status-msg" id="progress-msg">正在启动<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span></span>
+      <span class="status-percent" id="progress-percent">0%</span>
+    </div>
+  </div>
+
+  <!-- Results Section -->
+  <div class="results-section hidden" id="results-section">
+    <div class="results-header">
+      <span class="title">翻译结果</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="btn-download" id="btn-download-all" style="display:none;">下载全部</button>
+        <span class="subtitle" id="results-count"></span>
+      </div>
+    </div>
+    <div id="results-list" class="results-scroll"></div>
+
+    <!-- Revision Section -->
+    <div class="revision-section">
+      <div class="title">指出问题 · 要求修正</div>
+      <p class="hint">描述需要修正的内容，系统将在上下文中重新翻译</p>
+      <textarea id="feedback-text" placeholder="例如：第三段术语使用错误，应使用 XXX 而非 YYY"></textarea>
+      <div class="revision-actions">
+        <span class="note">提交反馈后自动重新翻译</span>
+        <button class="btn-retranslate" id="btn-retranslate">重新翻译</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLT Watermark — below results, above container bottom -->
+  <div class="colt-watermark">
+    <img src="/static/COLT.png" alt="COLT" draggable="false" onerror="this.style.display='none'">
+  </div>
+
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="title">翻译预览</span>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// Auto-detect: Open Design preview (port 17573) → route to Flask backend
+const API_BASE = window.location.port === '17573' ? 'http://localhost:8000/api' : '/api';
+
+let glossaryId = null;
+let fileIds = [];
+let currentJobId = null;
+let uploadedFiles = [];
+let confirmedApi = null;
+
+// API Settings — modal-based
+const apiModal = document.getElementById('api-modal');
+const apiModalClose = document.getElementById('api-modal-close');
+const apiKeyInput = document.getElementById('api-key');
+const apiBaseInput = document.getElementById('api-base-url');
+const apiModelInput = document.getElementById('api-model');
+const apiTestResult = document.getElementById('api-test-result');
+const btnApiTest = document.getElementById('btn-api-test');
+const btnApiConfirm = document.getElementById('btn-api-confirm');
+const apiQuickStatus = document.getElementById('api-quick-status');
+const apiQuickLabel = document.getElementById('api-quick-label');
+const btnApiQuick = document.getElementById('btn-api-quick');
+
+function openApiModal() { apiModal.classList.add('visible'); }
+function closeApiModal() { apiModal.classList.remove('visible'); }
+apiQuickStatus.addEventListener('click', openApiModal);
+btnApiQuick.addEventListener('click', (e) => { e.stopPropagation(); openApiModal(); });
+apiModalClose.addEventListener('click', closeApiModal);
+apiModal.addEventListener('click', (e) => { if (e.target === apiModal) closeApiModal(); });
+
+[apiKeyInput, apiBaseInput, apiModelInput].forEach(el => {
+  el.addEventListener('input', () => {
+    confirmedApi = null;
+    apiQuickLabel.textContent = '未配置';
+    [apiKeyInput, apiBaseInput, apiModelInput].forEach(i => i.disabled = false);
+  });
+});
+
+function getCustomAPI() { return confirmedApi; }
+
+function readApiForm() {
+  const key = apiKeyInput.value.trim();
+  if (!key) return null;
+  return {
+    api_key: key,
+    base_url: apiBaseInput.value.trim() || 'https://api.deepseek.com',
+    model: apiModelInput.value.trim() || 'deepseek-v4-flash',
+  };
+}
+
+btnApiConfirm.addEventListener('click', () => {
+  const cfg = readApiForm();
+  if (!cfg) {
+    apiTestResult.textContent = '请先填写 API Key';
+    apiTestResult.className = 'result error';
+    return;
+  }
+  confirmedApi = cfg;
+  apiQuickLabel.textContent = cfg.model || '已配置';
+  [apiKeyInput, apiBaseInput, apiModelInput].forEach(i => i.disabled = true);
+  closeApiModal();
+});
+
+btnApiTest.addEventListener('click', async () => {
+  const cfg = readApiForm();
+  if (!cfg) {
+    apiTestResult.textContent = '请先填写 API Key';
+    apiTestResult.className = 'result error';
+    return;
+  }
+  btnApiTest.disabled = true;
+  btnApiTest.textContent = '测试中...';
+  apiTestResult.className = 'result';
+  try {
+    const res = await fetch(`${API_BASE}/test-api`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    let data;
+    try { data = await res.json(); } catch (_) { throw new Error(`服务器错误 (HTTP ${res.status})`); }
+    if (data.status === 'ok') {
+      apiTestResult.textContent = '✓ ' + data.message;
+      apiTestResult.className = 'result success';
+    } else {
+      apiTestResult.textContent = '✗ ' + (data.message || '连接失败');
+      apiTestResult.className = 'result error';
+    }
+  } catch (err) {
+    apiTestResult.textContent = '✗ 网络错误：' + err.message;
+    apiTestResult.className = 'result error';
+  } finally {
+    btnApiTest.disabled = false;
+    btnApiTest.textContent = '测试连接';
+  }
+});
+
+// Drag-and-drop zone
+const uploadZone = document.getElementById('upload-zone');
+const fileListEl = document.getElementById('file-list');
+// Dynamic file picker — creates a new input each time to avoid stale state
+function openFilePicker() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.docx';
+  input.multiple = true;
+  input.style.display = 'none';
+  input.addEventListener('change', handleFileSelect);
+  input.click();
+}
+
+const glossaryStatus = document.getElementById('glossary-status');
+const glossaryName = document.getElementById('glossary-name');
+const btnChangeGlossary = document.getElementById('btn-change-glossary');
+const btnUploadGlossary = document.getElementById('btn-upload-glossary');
+const resultsSection = document.getElementById('results-section');
+const resultsList = document.getElementById('results-list');
+const resultsCount = document.getElementById('results-count');
+const progressSection = document.getElementById('progress-section');
+const progressRing = document.getElementById('progress-ring');
+const progressPct = document.getElementById('progress-pct');
+const progressTitle = document.getElementById('progress-title');
+const progressDetail = document.getElementById('progress-detail');
+const progressFiles = document.getElementById('progress-files');
+const progressMsg = document.getElementById('progress-msg');
+const progressPercent = document.getElementById('progress-percent');
+const feedbackText = document.getElementById('feedback-text');
+const btnTranslate = document.getElementById('btn-translate');
+const btnRetranslate = document.getElementById('btn-retranslate');
+const btnDownloadAll = document.getElementById('btn-download-all');
+const toastError = document.getElementById('toast-error');
+
+// Glossary
+btnUploadGlossary.addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv,.xlsx';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${API_BASE}/upload/glossary`, { method: 'POST', body: formData });
+      if (!res.ok) {
+        let errMsg = `上传失败 (HTTP ${res.status})`;
+        try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+        throw new Error(errMsg);
+      }
+      const data = await res.json();
+      glossaryId = data.glossary_id;
+      glossaryStatus.textContent = `已就绪：${data.term_count} 条术语`;
+      glossaryName.textContent = data.filename;
+      glossaryName.style.display = 'inline';
+      btnChangeGlossary.style.display = 'inline';
+      btnUploadGlossary.textContent = '更新';
+      hideError();
+      enableTranslateIfReady();
+    } catch (err) {
+      showError('术语表上传失败：' + err.message);
+    }
+  };
+  input.click();
+});
+
+btnChangeGlossary.addEventListener('click', () => { btnUploadGlossary.click(); });
+
+// File upload — openFilePicker() creates a fresh input each time
+uploadZone.addEventListener('click', (e) => {
+  openFilePicker();
+});
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+
+async function handleFileSelect(e) {
+  if (e.target.files.length) handleFiles(e.target.files);
+}
+
+async function handleFiles(files) {
+  const validFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.docx'));
+  if (!validFiles.length) {
+    showError('请选择 .docx 格式的文件');
+    return;
+  }
+  const formData = new FormData();
+  for (const f of validFiles) formData.append('files', f);
+  try {
+    const res = await fetch(`${API_BASE}/upload/files`, { method: 'POST', body: formData });
+    if (!res.ok) {
+      let errMsg = `上传失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
+    const data = await res.json();
+    // Append to existing lists (batch upload support)
+    fileIds = fileIds.concat(data.file_ids);
+    uploadedFiles = uploadedFiles.concat(validFiles);
+    renderFileList(uploadedFiles);
+    hideError();
+    enableTranslateIfReady();
+  } catch (err) {
+    showError('文件上传失败：' + err.message);
+  }
+}
+
+function renderFileList(files) {
+  fileListEl.innerHTML = '';
+  const fileScroll = document.getElementById('file-list-scroll');
+  const uploadActions = document.getElementById('upload-actions');
+  if (files.length === 0) {
+    fileScroll.classList.remove('visible');
+    uploadActions.style.display = 'none';
+    return;
+  }
+  const summary = document.createElement('div');
+  summary.className = 'summary';
+  summary.textContent = `已选 ${files.length} 个文件待翻译`;
+  fileListEl.appendChild(summary);
+  fileScroll.classList.add('visible');
+  uploadActions.style.display = 'flex';
+  Array.from(files).forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.style.animationDelay = (i * 0.04) + 's';
+    div.innerHTML = '<span class="name">' + escapeHtml(f.name) + '</span>' +
+      '<span class="remove" data-index="' + i + '">✕</span>';
+    div.querySelector('.remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeFile(i);
+    });
+    fileListEl.appendChild(div);
+  });
+}
+
+function removeFile(index) {
+  const newFiles = uploadedFiles.filter((_, i) => i !== index);
+  const newIds = fileIds.filter((_, i) => i !== index);
+  uploadedFiles = newFiles;
+  fileIds = newIds;
+  if (newFiles.length === 0) {
+    renderFileList([]);
+    btnTranslate.disabled = !glossaryId;
+    return;
+  }
+  renderFileList(newFiles);
+  enableTranslateIfReady();
+}
+
+// Clear all uploaded files — uses onclick in HTML to avoid any event-propagation issues
+function clearAllFiles(e) {
+  e.stopPropagation();
+  fileIds = [];
+  uploadedFiles = [];
+  renderFileList([]);
+  enableTranslateIfReady();
+}
+
+// Add more files — trigger file input without clearing
+document.getElementById('btn-add-more').addEventListener('click', (e) => {
+  e.stopPropagation();
+  openFilePicker();
+});
+
+// Translate
+btnTranslate.addEventListener('click', async () => {
+  if (!glossaryId) { showError('请先上传术语表'); return; }
+  if (!fileIds.length) { showError('请先上传要翻译的文件'); return; }
+
+  btnTranslate.disabled = true;
+  progressSection.classList.add('visible');
+  resultsSection.classList.add('hidden');
+  renderProgressInit();
+  hideError();
+
+  try {
+    const bodyData = { file_ids: fileIds, glossary_id: glossaryId };
+    const customApi = getCustomAPI();
+    if (customApi) bodyData.custom_api = customApi;
+    const res = await fetch(`${API_BASE}/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyData)
+    });
+    if (!res.ok) {
+      let errMsg = `翻译启动失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
+    const data = await res.json();
+    currentJobId = data.job_id;
+    pollStatus(currentJobId);
+  } catch (err) {
+    showError('翻译启动失败：' + err.message);
+    progressSection.classList.remove('visible');
+    btnTranslate.disabled = false;
+  }
+});
+
+// Progress
+const RING_CIRCUMFERENCE = 182.2;
+
+function renderProgressInit() {
+  progressFiles.innerHTML = '';
+  uploadedFiles.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'progress-file pf-pending';
+    div.style.animationDelay = (i * 0.06) + 's';
+    div.innerHTML = '<div class="pf-icon"></div><span class="pf-name">' + escapeHtml(f.name) + '</span>';
+    div.dataset.index = i;
+    progressFiles.appendChild(div);
+  });
+  updateProgressRing(0);
+  progressPct.textContent = '0%';
+  progressPercent.textContent = '0%';
+  progressTitle.textContent = '翻译处理中';
+  progressDetail.textContent = '连接 AI 服务...';
+  progressMsg.innerHTML = '正在启动<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+}
+
+function updateProgressRing(pct) {
+  const offset = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * pct / 100);
+  progressRing.style.strokeDashoffset = offset;
+}
+
+function renderProgress(prog) {
+  const total = prog.total || 1;
+  const done = prog.completed || 0;
+  const fullDone = Math.floor(done);
+  const pct = Math.min(100, Math.round((done / total) * 100));
+  updateProgressRing(pct);
+  progressPct.textContent = pct + '%';
+  progressPercent.textContent = pct + '%';
+
+  const items = progressFiles.querySelectorAll('.progress-file');
+  let activeName = '';
+  items.forEach((item, i) => {
+    item.className = 'progress-file';
+    if (i < fullDone) {
+      item.classList.add('pf-done');
+    } else if (i === fullDone && prog.stage !== 'done') {
+      item.classList.add('pf-active');
+      activeName = item.querySelector('.pf-name').textContent;
+    } else {
+      item.classList.add('pf-pending');
+    }
+  });
+
+  if (prog.stage === 'starting') {
+    progressTitle.textContent = '准备就绪';
+    progressDetail.textContent = '即将开始翻译...';
+    progressMsg.innerHTML = '正在准备文件<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+  } else if (prog.stage === 'translating') {
+    progressTitle.textContent = '翻译处理中';
+    if (prog.detail) {
+      progressMsg.innerHTML = '<span class="highlight">' + escapeHtml(prog.detail) + '</span><span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+    } else if (prog.current_file) {
+      progressMsg.innerHTML = '<span class="highlight">' + escapeHtml(prog.current_file) + '</span> 翻译中<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+    } else {
+      progressMsg.innerHTML = '正在翻译<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+    }
+    if (total > 1) {
+      progressDetail.textContent = '正在处理 ' + (fullDone + 1) + '/' + total + ' 个文件';
+    } else {
+      progressDetail.textContent = '进度 ' + pct + '%';
+    }
+  } else if (prog.stage === 'done') {
+    progressTitle.textContent = '处理完成';
+    progressDetail.textContent = '全部 ' + total + ' 个文件翻译完毕';
+    progressMsg.textContent = '合并结果中...';
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function pollStatus(jobId) {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/status/${jobId}`);
+      if (!res.ok) { clearInterval(interval); showError(`状态检查失败 (HTTP ${res.status})`); return; }
+      let data;
+      try { data = await res.json(); } catch (_) { clearInterval(interval); showError('状态检查失败：服务器返回了无效响应'); return; }
+      if (data.status === 'completed') {
+        clearInterval(interval);
+        updateProgressRing(100);
+        progressPct.textContent = '100%';
+        progressPercent.textContent = '100%';
+        progressTitle.textContent = '处理完成';
+        progressDetail.textContent = '正在加载结果...';
+        progressMsg.textContent = '翻译已完成';
+        progressFiles.querySelectorAll('.progress-file').forEach(el => {
+          el.className = 'progress-file pf-done';
+        });
+        setTimeout(() => {
+          progressSection.classList.remove('visible');
+          showResults(data.results || []);
+        }, 600);
+        btnTranslate.disabled = false;
+      } else if (data.status === 'failed') {
+        clearInterval(interval);
+        showError('翻译失败：' + (data.error || '未知错误'));
+        progressSection.classList.remove('visible');
+        btnTranslate.disabled = false;
+      } else {
+        if (data.progress) {
+          renderProgress(data.progress);
+        } else {
+          progressMsg.innerHTML = '正在连接 AI 服务<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+          progressDetail.textContent = '等待翻译任务启动...';
+        }
+      }
+    } catch (err) {
+      clearInterval(interval);
+      showError('状态检查失败：' + err.message);
+      progressSection.classList.remove('visible');
+      btnTranslate.disabled = false;
+    }
+  }, 2000);
+}
+
+function showResults(results, isRevision) {
+  resultsSection.classList.remove('hidden');
+  resultsList.innerHTML = '';
+  const completed = results.filter(r => r.status === 'completed');
+  const label = isRevision ? '已修改' : '翻译完成';
+  btnDownloadAll.style.display = completed.length > 1 ? 'inline' : 'none';
+  resultsCount.textContent = `${completed.length}/${results.length} 个文件 · ${label}`;
+
+  results.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    const isOk = r.status === 'completed';
+
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'status-icon';
+    const checkBg = document.createElement('div');
+    checkBg.className = 'check-bg';
+    iconDiv.appendChild(checkBg);
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('class', 'check-path');
+    path.setAttribute('d', 'M5 13l4 4L19 7');
+    svg.appendChild(path);
+    iconDiv.appendChild(svg);
+    div.appendChild(iconDiv);
+
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'info';
+    const filenameEl = document.createElement('div');
+    filenameEl.className = 'filename';
+    filenameEl.textContent = uploadedFiles[i]?.name || r.file_id;
+    infoDiv.appendChild(filenameEl);
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'meta';
+    const badgeClass = isOk ? 'badge-success' : 'badge-error';
+    const badgeText = isOk ? (isRevision ? '已修改' : '完成') : '失败';
+    metaDiv.innerHTML = '<span class="badge ' + badgeClass + '">' + badgeText + '</span>';
+    if (r.error) {
+      metaDiv.innerHTML += '<span style="color:var(--error-fg);font-size:13px;">' + r.error + '</span>';
+    }
+    if (isOk && isRevision) {
+      metaDiv.innerHTML += '<span class="revision-badge">已修订</span>';
+    }
+    infoDiv.appendChild(metaDiv);
+    div.appendChild(infoDiv);
+
+    if (isOk) {
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'actions';
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'btn-download btn-preview';
+      prevBtn.textContent = '预览';
+      actionsDiv.appendChild(prevBtn);
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'btn-download';
+      dlBtn.textContent = '下载';
+      actionsDiv.appendChild(dlBtn);
+      div.appendChild(actionsDiv);
+
+      const fileId = r.file_id;
+      const origName = uploadedFiles[i]?.name || fileId;
+      dlBtn.addEventListener('click', () => {
+        triggerDownload(`${API_BASE}/result/${currentJobId}?file_id=${fileId}`, origName);
+      });
+      prevBtn.addEventListener('click', () => openPreview(currentJobId, fileId));
+    }
+
+    resultsList.appendChild(div);
+
+    if (isOk) {
+      setTimeout(() => {
+        iconDiv.classList.add('checked');
+        div.style.transform = 'scale(1)';
+      }, 200 + i * 120);
+    }
+  });
+}
+
+// Re-translate
+btnRetranslate.addEventListener('click', async () => {
+  if (!currentJobId) return;
+  const feedback = feedbackText.value.trim();
+  if (!feedback) { showError('请先描述需要修正的问题'); return; }
+
+  btnRetranslate.disabled = true;
+  progressSection.classList.add('visible');
+  renderProgressInit();
+  hideError();
+
+  try {
+    const revBody = { job_id: currentJobId, feedback };
+    const revCustomApi = getCustomAPI();
+    if (revCustomApi) revBody.custom_api = revCustomApi;
+    const res = await fetch(`${API_BASE}/revise`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(revBody)
+    });
+    if (!res.ok) {
+      let errMsg = `重新翻译失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
+    const data = await res.json();
+    currentJobId = data.job_id;
+
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(`${API_BASE}/status/${currentJobId}`);
+        if (!r.ok) { clearInterval(interval); showError(`状态检查失败 (HTTP ${r.status})`); return; }
+        let d;
+        try { d = await r.json(); } catch (_) { clearInterval(interval); showError('状态检查失败：服务器返回了无效响应'); return; }
+        if (d.status === 'completed') {
+          clearInterval(interval);
+          progressFiles.querySelectorAll('.progress-file').forEach(el => {
+            el.className = 'progress-file pf-done';
+          });
+          setTimeout(() => {
+            progressSection.classList.remove('visible');
+            showResults(d.results || [], true);
+          }, 500);
+          btnRetranslate.disabled = false;
+        } else if (d.status === 'failed') {
+          clearInterval(interval);
+          showError('重新翻译失败：' + (d.error || '未知错误'));
+          progressSection.classList.remove('visible');
+          btnRetranslate.disabled = false;
+        } else {
+          if (d.progress) renderProgress(d.progress);
+        }
+      } catch (err) {
+        clearInterval(interval);
+        showError('状态检查失败');
+        progressSection.classList.remove('visible');
+        btnRetranslate.disabled = false;
+      }
+    }, 2000);
+  } catch (err) {
+    showError('重新翻译启动失败：' + err.message);
+    progressSection.classList.remove('visible');
+    btnRetranslate.disabled = false;
+  }
+});
+
+// Download All
+btnDownloadAll.addEventListener('click', () => {
+  if (!currentJobId) return;
+  triggerDownload(`${API_BASE}/download-all/${currentJobId}`, 'translations.zip');
+});
+
+// Helpers
+function triggerDownload(url, filename) {
+  // In sandboxed iframes, the ONLY reliable method is navigating the iframe
+  // itself to the download URL. Server returns Content-Disposition: attachment,
+  // browser intercepts and downloads — page content stays unchanged in Chrome.
+  // No sandbox permission needed: same-frame navigation is always allowed.
+  window.location.href = url;
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+}
+
+function enableTranslateIfReady() {
+  btnTranslate.disabled = !(glossaryId && fileIds.length);
+}
+
+function showError(msg) {
+  toastError.textContent = msg;
+  toastError.classList.add('visible');
+}
+
+function hideError() {
+  toastError.classList.remove('visible');
+}
+
+// Preview modal
+function renderRun(run) {
+  let text = run.text;
+  if (!text) return '';
+  text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (!run.bold && !run.italic && !run.underline && !run.color && !run.font_size) {
+    return text;
+  }
+  let style = '';
+  if (run.bold) style += 'font-weight:700;';
+  if (run.italic) style += 'font-style:italic;';
+  if (run.underline) style += 'text-decoration:underline;';
+  if (run.color) style += 'color:#' + run.color + ';';
+  if (run.font_size) style += 'font-size:' + run.font_size + 'pt;';
+  if (run.font_name) style += 'font-family:\'' + run.font_name.replace(/'/g, "\\'") + '\',serif;';
+  return '<span style="' + style + '">' + text + '</span>';
+}
+
+function renderParagraph(para) {
+  if (!para.text.trim()) {
+    return '<div class="preview-para preview-empty"></div>';
+  }
+  let alignStyle = '';
+  if (para.alignment === 0) alignStyle = 'text-align:left;';
+  else if (para.alignment === 1) alignStyle = 'text-align:center;';
+  else if (para.alignment === 2) alignStyle = 'text-align:right;';
+  else if (para.alignment === 3) alignStyle = 'text-align:justify;';
+  const runsHtml = para.runs.map(renderRun).join('');
+  return '<div class="preview-para" style="' + alignStyle + '">' + runsHtml + '</div>';
+}
+
+async function openPreview(jobId, fileId) {
+  try {
+    const res = await fetch(`${API_BASE}/preview/${jobId}?file_id=${fileId}`);
+    if (!res.ok) {
+      let errMsg = `预览加载失败 (HTTP ${res.status})`;
+      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
+    const data = await res.json();
+    const preview = data.previews[0];
+    if (!preview) { showError('未找到预览内容'); return; }
+    const modalBody = document.getElementById('modal-body');
+    modalBody.innerHTML = '';
+    const header = document.createElement('div');
+    header.className = 'file-header';
+    header.textContent = fileId;
+    modalBody.appendChild(header);
+    const contentDiv = document.createElement('div');
+    if (preview.paragraphs) {
+      contentDiv.innerHTML = preview.paragraphs.map(renderParagraph).join('');
+    } else {
+      contentDiv.textContent = '[文件不存在]';
+    }
+    modalBody.appendChild(contentDiv);
+    document.getElementById('modal-overlay').classList.add('visible');
+  } catch (err) {
+    showError('预览加载失败：' + err.message);
+  }
+}
+
+document.getElementById('modal-close').addEventListener('click', () => {
+  document.getElementById('modal-overlay').classList.remove('visible');
+});
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    document.getElementById('modal-overlay').classList.remove('visible');
+  }
+});
+</script>
+</body>
+</html>
