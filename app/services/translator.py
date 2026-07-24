@@ -39,8 +39,10 @@ _CHINESE_YEAR_MONTH_RE = re.compile(r'(\d{4})\s*年\s*(\d{1,2})\s*月(?!\s*\d)')
 _CHINESE_MONTH_DAY_RE = re.compile(r'(?<!\d)(\d{1,2})\s*月\s*(\d{1,2})\s*日')
 
 # Numeric date patterns — YYYY.MM.DD / YYYY-MM-DD → Month DD, YYYY
-_NUMERIC_DOT_DATE_RE = re.compile(r'(\d{4})\.(\d{1,2})\.(\d{1,2})')
-_NUMERIC_DASH_DATE_RE = re.compile(r'(\d{4})-(\d{1,2})-(\d{1,2})')
+# (?<!\d) / (?!\d) prevent matching inside longer digit sequences (e.g.
+# ISSN "1009-4067.2025.16.06" where 2025 is preceded by a digit).
+_NUMERIC_DOT_DATE_RE = re.compile(r'(?<!\d)(\d{4})\.(\d{1,2})\.(\d{1,2})(?!\d)')
+_NUMERIC_DASH_DATE_RE = re.compile(r'(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)')
 
 # Double-date cleanup patterns
 _MONTHS_PAT = (
