@@ -438,12 +438,12 @@ class TranslatorService:
         )
 
         # 3+ consecutive identical chars (clear typo: "missspelled"→"mispelled")
-        # Exclude Roman numeral characters (I V X L C D M) and their lowercase
-        # forms to avoid mangling "III"→"I", "VIII"→"VI", "XXX"→"X" etc.
+        # Preserve Roman numerals (IVXLCDM) and digits to avoid mangling
+        # "III"→"I", "10001"→"101", etc.
         def _dedup_char(m):
             ch = m.group(1)
-            if ch.lower() in 'ivxlcdm':
-                return m.group(0)  # preserve Roman numerals
+            if ch.isdigit() or ch.lower() in 'ivxlcdm':
+                return m.group(0)  # preserve numbers & Roman numerals
             return ch
         result = re.sub(r'(\w)\1{2,}', _dedup_char, result)
         # Duplicated whole word: "the the" or "has gradually has gradually"
