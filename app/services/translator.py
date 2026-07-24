@@ -854,14 +854,20 @@ class TranslatorService:
         """
         def _full_date(m: re.Match) -> str:
             y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if not (1 <= mo <= 12):
+                return m.group(0)  # not a real month, skip
             return f"{MONTH_NAMES[mo]} {d}, {y}"
 
         def _year_month(m: re.Match) -> str:
             y, mo = int(m.group(1)), int(m.group(2))
+            if not (1 <= mo <= 12):
+                return m.group(0)
             return f"{MONTH_NAMES[mo]} {y}"
 
         def _month_day(m: re.Match) -> str:
             mo, d = int(m.group(1)), int(m.group(2))
+            if not (1 <= mo <= 12):
+                return m.group(0)
             return f"{MONTH_NAMES[mo]} {d}"
 
         result = _CHINESE_FULL_DATE_RE.sub(_full_date, text)
