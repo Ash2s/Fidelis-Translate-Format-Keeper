@@ -125,33 +125,23 @@ body::after {
   color: var(--brass);
   font-style: italic;
 }
-.app-header .title-cn {
+.app-header .title-sub {
   font-family: var(--font-sans);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--fg-tertiary);
-  letter-spacing: 0.35em;
-  margin-top: 14px;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
+  margin-top: 10px;
 }
-.app-header .title-cn span {
-  display: inline-block;
-  padding: 0 8px;
-}
-.app-header .title-cn .diamond {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px; height: 14px;
-  vertical-align: middle;
-  margin: 0 4px;
-}
-.app-header .title-cn .diamond::after {
-  content: '';
-  width: 4px; height: 4px;
-  border: 1.5px solid var(--brass-light);
-  transform: rotate(45deg);
-  display: block;
+.app-header .title-cn {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-tertiary);
+  letter-spacing: 0.3em;
+  margin-top: 4px;
+  opacity: 0.75;
 }
 
 /* ===== STATUS BAR (glossary + api on one line) ===== */
@@ -1103,7 +1093,8 @@ body::after {
 @media (max-width: 420px) {
   .container { padding: 24px 14px 48px; }
   .app-header .title-en { font-size: 20px; }
-  .app-header .title-cn { font-size: 11px; letter-spacing: 0.2em; }
+  .app-header .title-sub { font-size: 11px; letter-spacing: 0.2em; }
+  .app-header .title-cn { font-size: 10px; letter-spacing: 0.2em; }
   .upload-zone { padding: 28px 14px 24px; border-radius: var(--radius); }
   .upload-zone .icon-wrap { width: 40px; height: 40px; font-size: 16px; }
   .upload-zone .main-text { font-size: 14px; }
@@ -1139,11 +1130,8 @@ body::after {
       <h1 class="title-en"><span class="brass">Fidelis</span> Translate</h1>
       <span class="rule"></span>
     </div>
-    <div class="title-cn">
-      <span>文件翻译工作台</span>
-      <span class="diamond"></span>
-      <span>Format Keeper</span>
-    </div>
+    <div class="title-sub">Format Keeper</div>
+    <div class="title-cn">斐迪译</div>
   </header>
 
   <!-- Error toast -->
