@@ -11,7 +11,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Immigration Translation Tool")
+app = FastAPI(title="Fidelis Translate — Format Keeper")
 
 # Allow cross-origin requests (e.g. from Open Design preview)
 app.add_middleware(
@@ -45,7 +45,7 @@ async def root():
         with open(index, "rb") as f:
             content = f.read()
         return Response(content=content, media_type="text/html")
-    return {"message": "Immigration Translation Tool"}
+    return {"message": "Fidelis Translate — Format Keeper"}
 
 if __name__ == "__main__":
     import uvicorn

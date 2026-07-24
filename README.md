@@ -1,4 +1,4 @@
-# Immigration Translation Web
+# Fidelis Translate — Format Keeper
 
 中译英文档翻译工具。上传 .docx 文件 + 术语表，通过 DeepSeek API（或其他 OpenAI 兼容接口）自动翻译并保留原文格式。
 

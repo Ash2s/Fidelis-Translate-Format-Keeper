@@ -1,6 +1,6 @@
-# Immigration Translation Tool
+# Fidelis Translate — Format Keeper
 
-中译英移民文档翻译 Web 工具。上传 .docx + 术语表，通过 DeepSeek API（或 OpenAI 兼容接口）自动翻译并保留原文格式。
+中译英文档翻译 Web 工具。上传 .docx + 术语表，通过 DeepSeek API（或 OpenAI 兼容接口）自动翻译并保留原文格式。
 
 ## 技术栈
 - **后端**: FastAPI + python-docx + OpenAI SDK（兼容 DeepSeek）
