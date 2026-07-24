@@ -796,7 +796,7 @@ def _process_file_sync(
             for idx, entry in enumerate(translated):
                 if idx < len(doc.paragraphs):
                     doc_parser.apply_per_run_formatting(doc.paragraphs[idx], entry["runs"], entry.get("translated_runs", []))
-                    doc_parser.set_line_spacing(doc.paragraphs[idx], True)
+                    doc_parser.set_line_spacing(doc.paragraphs[idx], False)
 
             table_cells = doc_parser.extract_table_cells(doc)
             if table_cells:
