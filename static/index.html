@@ -1555,7 +1555,8 @@ btnTranslate.addEventListener('click', async () => {
   hideError();
 
   try {
-    const bodyData = { file_ids: fileIds, glossary_id: glossaryId };
+    const bodyData = { file_ids: fileIds };
+    if (glossaryId) bodyData.glossary_id = glossaryId;
     const customApi = getCustomAPI();
     if (customApi) bodyData.custom_api = customApi;
     const res = await fetch(`${API_BASE}/translate`, {
@@ -1565,7 +1566,14 @@ btnTranslate.addEventListener('click', async () => {
     });
     if (!res.ok) {
       let errMsg = `翻译启动失败 (HTTP ${res.status})`;
-      try { const err = await res.json(); errMsg = err.detail || errMsg; } catch (_) {}
+      try {
+        const err = await res.json();
+        if (Array.isArray(err.detail)) {
+          errMsg = err.detail.map(e => e.msg || JSON.stringify(e)).join('；');
+        } else {
+          errMsg = err.detail || errMsg;
+        }
+      } catch (_) {}
       throw new Error(errMsg);
     }
     const data = await res.json();
