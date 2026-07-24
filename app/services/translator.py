@@ -438,7 +438,14 @@ class TranslatorService:
         )
 
         # 3+ consecutive identical chars (clear typo: "missspelled"→"mispelled")
-        result = re.sub(r'(\w)\1{2,}', r'\1', result)
+        # Exclude Roman numeral characters (I V X L C D M) and their lowercase
+        # forms to avoid mangling "III"→"I", "VIII"→"VI", "XXX"→"X" etc.
+        def _dedup_char(m):
+            ch = m.group(1)
+            if ch.lower() in 'ivxlcdm':
+                return m.group(0)  # preserve Roman numerals
+            return ch
+        result = re.sub(r'(\w)\1{2,}', _dedup_char, result)
         # Duplicated whole word: "the the" or "has gradually has gradually"
         # Skip URL-related tokens to avoid mangling domains
         # Also skip digit-only words to avoid breaking dates (e.g. "2025 2025.10.13")
