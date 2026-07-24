@@ -378,7 +378,7 @@ async def revise(req: RevisionRequest):
 
     asyncio.create_task(
         run_translation_with_feedback(
-            new_job_id, file_ids, glossary_id, req.feedback, custom_api=custom_api
+            new_job_id, file_ids, req.feedback, glossary_id=glossary_id, custom_api=custom_api
         )
     )
 
@@ -851,12 +851,15 @@ def _process_file_sync(
 async def run_translation(
     job_id: str,
     file_ids: list[str],
-    glossary_id: str,
+    glossary_id: str | None = None,
     custom_api: dict | None = None,
 ) -> None:
     """Background task: translate all files in a job."""
     try:
-        glossary = glossary_service.get_glossary(glossary_id)
+        if glossary_id:
+            glossary = glossary_service.get_glossary(glossary_id)
+        else:
+            glossary = {}
     except ValueError as e:
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["error"] = str(e)
@@ -901,13 +904,16 @@ async def run_translation(
 async def run_translation_with_feedback(
     job_id: str,
     file_ids: list[str],
-    glossary_id: str,
     feedback: str,
+    glossary_id: str | None = None,
     custom_api: dict | None = None,
 ) -> None:
     """Background task: re-translate all files with user feedback."""
     try:
-        glossary = glossary_service.get_glossary(glossary_id)
+        if glossary_id:
+            glossary = glossary_service.get_glossary(glossary_id)
+        else:
+            glossary = {}
     except ValueError as e:
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["error"] = str(e)

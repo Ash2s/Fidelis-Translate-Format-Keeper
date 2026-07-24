@@ -14,8 +14,8 @@ class CustomAPIConfig(BaseModel):
 
 class TranslateRequest(BaseModel):
     file_ids: list[str]
-    glossary_id: str
-    custom_api: CustomAPIConfig | None = None
+    glossary_id: Optional[str] = None
+    custom_api: Optional[CustomAPIConfig] = None
 
 class JobResponse(BaseModel):
     job_id: str

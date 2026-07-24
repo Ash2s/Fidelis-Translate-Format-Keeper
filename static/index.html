@@ -1522,7 +1522,7 @@ function removeFile(index) {
   fileIds = newIds;
   if (newFiles.length === 0) {
     renderFileList([]);
-    btnTranslate.disabled = !glossaryId;
+    btnTranslate.disabled = !fileIds.length;
     return;
   }
   renderFileList(newFiles);
@@ -1546,7 +1546,6 @@ document.getElementById('btn-add-more').addEventListener('click', (e) => {
 
 // Translate
 btnTranslate.addEventListener('click', async () => {
-  if (!glossaryId) { showError('请先上传术语表'); return; }
   if (!fileIds.length) { showError('请先上传要翻译的文件'); return; }
 
   btnTranslate.disabled = true;
@@ -1873,7 +1872,7 @@ function copyToClipboard(text) {
 }
 
 function enableTranslateIfReady() {
-  btnTranslate.disabled = !(glossaryId && fileIds.length);
+  btnTranslate.disabled = !fileIds.length;
 }
 
 function showError(msg) {
