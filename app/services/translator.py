@@ -70,7 +70,7 @@ _URL_LINE_RE = re.compile(
 
 class TranslatorService:
     """
-    Service for translating Chinese immigration document text to English
+    Service for translating Chinese document text to English
     via the DeepSeek API (OpenAI-compatible endpoint).
 
     Provides glossary-aware replacement, Chinese residue detection, and
@@ -317,7 +317,7 @@ class TranslatorService:
             system_prompt = system_override
         else:
             system_prompt = (
-                "You are a professional immigration document translator. "
+                "You are a professional Chinese-to-English document translator. "
                 "Translate the following Chinese text to English accurately and formally.\n"
                 "Use the provided glossary for technical terms:\n"
                 f"{glossary_lines}\n\n"
@@ -549,7 +549,7 @@ class TranslatorService:
         active_model = model or self._model
 
         system_prompt = (
-            "You are a professional English proofreader for academic and immigration documents. "
+            "You are a professional English proofreader for translated documents. "
             "Revise the following English text so it reads like natural, fluent, academic-level English "
             "written by a native speaker.\n\n"
             "CRITICAL — fix these specific issues:\n"
