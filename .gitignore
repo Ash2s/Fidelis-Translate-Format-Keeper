@@ -10,3 +10,7 @@ server.log
 
 # exclude negations (files we DO want to track)
 !.env.example
+
+# 服务器本地文件，不入库
+venv/
+*.bak.*
