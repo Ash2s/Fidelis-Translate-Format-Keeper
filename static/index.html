@@ -1265,7 +1265,7 @@ body::after {
 
   <!-- COLT Watermark — below results, above container bottom -->
   <div class="colt-watermark">
-    <img src="/static/COLT.png" alt="COLT" draggable="false" onerror="this.style.display='none'">
+    <img src="static/COLT.png" alt="COLT" draggable="false" onerror="this.style.display='none'">
   </div>
 
 </div>
@@ -1296,7 +1296,9 @@ body::after {
 
 <script>
 // Auto-detect: Open Design preview (port 17573) → route to Flask backend
-const API_BASE = window.location.port === '17573' ? 'http://localhost:8000/api' : '/api';
+// 自动适配子路径部署（nginx 子路径）：页面在 /xxx/ 下时 API 自动带上该前缀
+function apiBase() { const m = location.pathname.match(/^\/[^/]+\//); return m ? m[0].replace(/\/$/, '') : ''; }
+const API_BASE = window.location.port === '17573' ? 'http://localhost:8000/api' : (apiBase() + '/api');
 
 let glossaryId = null;
 let fileIds = [];
