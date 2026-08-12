@@ -590,6 +590,16 @@ body::after {
   font-size: 13px;
   color: var(--fg-tertiary);
 }
+.pf-live {
+  font-size: 13px;
+  color: var(--fg-secondary);
+  line-height: 1.8;
+  text-align: left;
+  max-width: 620px;
+  margin: 8px auto 0;
+}
+.pf-live .fl-name { color: var(--fg); font-weight: 600; }
+.pf-live .fl-phase { color: var(--fg-tertiary); font-size: 12px; }
 
 /* File rows */
 .progress-files {
@@ -1247,6 +1257,7 @@ body::after {
       <textarea id="feedback-text" placeholder="例如：第三段术语使用错误，应使用 XXX 而非 YYY"></textarea>
       <div class="revision-actions">
         <span class="note">提交反馈后自动重新翻译</span>
+        <button class="btn-retranslate" id="btn-quality-report" style="display:none;">翻译报告</button>
         <button class="btn-retranslate" id="btn-retranslate">重新翻译</button>
       </div>
     </div>
@@ -1267,6 +1278,19 @@ body::after {
       <button class="modal-close" id="modal-close">✕</button>
     </div>
     <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Quality Report Modal -->
+<div class="modal-overlay" id="report-modal-overlay">
+  <div class="modal-content" style="width:92vw;max-width:1080px;height:86vh;">
+    <div class="modal-header">
+      <span class="title">翻译报告</span>
+      <button class="modal-close" id="report-modal-close">✕</button>
+    </div>
+    <div style="flex:1;min-height:0;">
+      <iframe id="report-frame" style="width:100%;height:100%;border:none;background:#fff;" title="翻译报告"></iframe>
+    </div>
   </div>
 </div>
 
@@ -1399,6 +1423,22 @@ const progressPercent = document.getElementById('progress-percent');
 const feedbackText = document.getElementById('feedback-text');
 const btnTranslate = document.getElementById('btn-translate');
 const btnRetranslate = document.getElementById('btn-retranslate');
+const btnQualityReport = document.getElementById('btn-quality-report');
+const reportModalOverlay = document.getElementById('report-modal-overlay');
+const reportFrame = document.getElementById('report-frame');
+
+function openQualityReport() {
+  if (!currentJobId) { showError('请先完成翻译'); return; }
+  reportFrame.src = `${API_BASE}/quality-report/${currentJobId}`;
+  reportModalOverlay.classList.add('visible');
+}
+btnQualityReport.addEventListener('click', openQualityReport);
+document.getElementById('report-modal-close').addEventListener('click', () => {
+  reportModalOverlay.classList.remove('visible');
+});
+reportModalOverlay.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) reportModalOverlay.classList.remove('visible');
+});
 const btnDownloadAll = document.getElementById('btn-download-all');
 const toastError = document.getElementById('toast-error');
 
@@ -1641,17 +1681,39 @@ function renderProgress(prog) {
     progressMsg.innerHTML = '正在准备文件<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
   } else if (prog.stage === 'translating') {
     progressTitle.textContent = '翻译处理中';
-    if (prog.detail) {
+    const liveFiles = prog.files || {};
+    const fids = Object.keys(liveFiles);
+    if (fids.length > 0) {
+      // Parallel live view: show every file currently being translated with
+      // its own paragraph progress and phase.
+      progressMsg.innerHTML = fids.map(id => {
+        const f = liveFiles[id];
+        const seg = (f.total ? (' ' + (f.done || 0) + '/' + f.total + ' 段') : '');
+        const ph = (f.phase ? ('<span class="fl-phase"> · ' + escapeHtml(f.phase) + '</span>') : '');
+        return '<div class="pf-live"><span class="fl-name">' + escapeHtml(f.name || id) + '</span>' + seg + ph + '</div>';
+      }).join('');
+      if (total > 1) {
+        progressDetail.textContent = '并行翻译 ' + fids.length + ' 个文件 · 已完成 ' + fullDone + '/' + total;
+      } else {
+        progressDetail.textContent = '进度 ' + pct + '%';
+      }
+    } else if (prog.detail) {
       progressMsg.innerHTML = '<span class="highlight">' + escapeHtml(prog.detail) + '</span><span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+      if (total > 1) {
+        progressDetail.textContent = '正在处理 ' + (fullDone + 1) + '/' + total + ' 个文件';
+      } else {
+        progressDetail.textContent = '进度 ' + pct + '%';
+      }
     } else if (prog.current_file) {
       progressMsg.innerHTML = '<span class="highlight">' + escapeHtml(prog.current_file) + '</span> 翻译中<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
+      if (total > 1) {
+        progressDetail.textContent = '正在处理 ' + (fullDone + 1) + '/' + total + ' 个文件';
+      } else {
+        progressDetail.textContent = '进度 ' + pct + '%';
+      }
     } else {
       progressMsg.innerHTML = '正在翻译<span class="dot-anim">.</span><span class="dot-anim">.</span><span class="dot-anim">.</span>';
-    }
-    if (total > 1) {
-      progressDetail.textContent = '正在处理 ' + (fullDone + 1) + '/' + total + ' 个文件';
-    } else {
-      progressDetail.textContent = '进度 ' + pct + '%';
+      progressDetail.textContent = total > 1 ? ('正在处理 ' + (fullDone + 1) + '/' + total + ' 个文件') : ('进度 ' + pct + '%');
     }
   } else if (prog.stage === 'done') {
     progressTitle.textContent = '处理完成';
@@ -1681,6 +1743,7 @@ async function pollStatus(jobId) {
         progressTitle.textContent = '处理完成';
         progressDetail.textContent = '正在加载结果...';
         progressMsg.textContent = '翻译已完成';
+        btnQualityReport.style.display = '';
         progressFiles.querySelectorAll('.progress-file').forEach(el => {
           el.className = 'progress-file pf-done';
         });

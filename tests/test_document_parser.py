@@ -142,30 +142,33 @@ def test_output_format_times_new_roman():
         os.unlink(path)
 
 
-def test_apply_per_run_formatting_adds_space_between_runs():
-    """When per-run translations would merge without spaces (e.g. Chinese
-    character fragments translated independently), apply_per_run_formatting
-    should insert a space between adjacent alphanumeric runs."""
+def test_apply_per_run_formatting_whole_paragraph_union():
+    """Whole-paragraph write-back (per-run translation was removed):
+    the full translation goes into the first non-empty run, that run gets the
+    UNION of all non-empty runs' formats (bold), and the other runs are
+    cleared."""
     parser = DocumentParser()
     doc = DocxDocument()
     p = doc.add_paragraph()
-
-    # Simulate two runs that were originally Chinese characters "例" "如"
-    r1 = p.add_run("Example")
-    r2 = p.add_run("For example")
+    r1 = p.add_run("例")
+    r2 = p.add_run("如")
+    r2.font.bold = True  # second run bold → union must make the carrier bold
 
     runs_data = [
         {"text": "例", "bold": False, "italic": False, "underline": False,
          "font_name": None, "font_size": None, "highlight": None, "color": None},
-        {"text": "如", "bold": False, "italic": False, "underline": False,
+        {"text": "如", "bold": True, "italic": False, "underline": False,
          "font_name": None, "font_size": None, "highlight": None, "color": None},
     ]
-    translated_runs = ["Example", "For example"]
+    # New pipeline: full translation lives in the first non-empty slot only.
+    translated_runs = ["The full translation.", ""]
 
     parser.apply_per_run_formatting(p, runs_data, translated_runs)
 
-    # The two runs should now have a space between them
-    assert p.text == "Example For example", (
-        f"Expected 'Example For example', got: {repr(p.text)}"
-    )
+    assert p.text == "The full translation.", f"got: {repr(p.text)}"
+    assert p.runs[0].text == "The full translation."
+    assert p.runs[1].text == ""            # other runs cleared
+    assert p.runs[0].font.bold is True     # format union (any run bold)
+    assert p.runs[0].font.name == "Times New Roman"
+    assert p.runs[0].font.size == Pt(12)
 

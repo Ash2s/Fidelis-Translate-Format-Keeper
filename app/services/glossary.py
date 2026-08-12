@@ -7,9 +7,19 @@ import re
 from openpyxl import load_workbook
 from typing import Optional
 from app.config import settings
+from app.services.dedup_guard import _is_sentence_like
 
-# How long (in seconds) a glossary is kept since upload
-GLOSSARY_TTL = 24 * 3600  # 24 hours
+# How long (in seconds) a glossary is kept since upload.
+# 24h was too short for batch workflows — glossaries uploaded once would be
+# purged mid-project, silently disabling term enforcement (badcase type 8).
+GLOSSARY_TTL = 7 * 24 * 3600  # 7 days
+
+# Header labels to skip when parsing glossary files (CSV/XLSX). The first row
+# of a glossary export is often a header like "zh-CN / en-US" or "中文术语 /
+# 英文翻译"; loading it as a term pollutes both the prompt injection and the
+# replacement pass (observed: '\ufeffzh-CN → en-US' term in real data).
+_HEADER_CN = {'中文术语', '中文', '术语', '原文', '中文术语(必填)', '中文名称'}
+_HEADER_EN = {'en-us', 'english', '英文', '译文', '翻译', 'translation', 'en', 'en名称'}
 
 
 class GlossaryService:
@@ -51,7 +61,13 @@ class GlossaryService:
             self._metadata.pop(gid, None)
             for p in (self._glossary_path(gid), self._metadata_path(gid)):
                 if os.path.exists(p):
-                    os.remove(p)
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        # Deletion failure (permissions / AV / sandbox) must not
+                        # crash service startup. The stale file is simply left
+                        # on disk and ignored.
+                        pass
 
     def _load_all_from_disk(self) -> None:
         """Reload every persisted glossary from disk (called at startup)."""
@@ -89,27 +105,55 @@ class GlossaryService:
         self._save_to_disk(glossary_id)
         return glossary_id
 
+    def _is_header_row(self, cn: str, en: str) -> bool:
+        """True if a parsed row looks like a header rather than a real term.
+
+        Strips UTF-8 BOM and normalizes case/whitespace before comparing.
+        """
+        cn_norm = cn.strip().lstrip('\ufeff').strip().lower()
+        en_norm = en.strip().lower()
+        if cn_norm in _HEADER_CN:
+            return True
+        if en_norm in _HEADER_EN:
+            return True
+        # "zh-CN" / "en-US" two-column header
+        if cn_norm in ('zh-cn', 'zh', 'cn') and en_norm in ('en-us', 'en'):
+            return True
+        return False
+
     def _load_csv(self, path: str) -> dict[str, str]:
         terms = {}
-        with open(path, "r", encoding="utf-8") as f:
+        skipped = 0
+        with open(path, "r", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             for row in reader:
                 if len(row) >= 2:
                     cn, en = row[0].strip(), row[1].strip()
-                    if cn and en and cn != "中文术语":
+                    if not self._is_header_row(cn, en) and cn and en:
+                        if _is_sentence_like(en):
+                            skipped += 1
+                            continue
                         terms[cn] = en
+        if skipped:
+            print(f"[glossary] 已忽略 {skipped} 条句子型非规范词条（CSV）")
         return terms
 
     def _load_xlsx(self, path: str) -> dict[str, str]:
         terms = {}
+        skipped = 0
         wb = load_workbook(path, data_only=True)
         ws = wb.active
         for row in ws.iter_rows(values_only=True):
             if len(row) >= 2:
                 if row[0] is not None and row[1] is not None:
                     cn, en = str(row[0]).strip(), str(row[1]).strip()
-                    if cn and en and cn != "中文术语":
+                    if not self._is_header_row(cn, en) and cn and en:
+                        if _is_sentence_like(en):
+                            skipped += 1
+                            continue
                         terms[cn] = en
+        if skipped:
+            print(f"[glossary] 已忽略 {skipped} 条句子型非规范词条（XLSX）")
         return terms
 
     def get_glossary(self, glossary_id: str) -> dict[str, str]:

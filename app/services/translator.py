@@ -1,10 +1,36 @@
 """Translator service for calling DeepSeek API to translate Chinese to English."""
 
 import re
+import time
+import threading
 import httpx
 from datetime import datetime
 from openai import OpenAI
 from app.config import settings
+from app.services import dedup_guard
+
+# Global API concurrency cap + retry. A single semaphore guards EVERY
+# chat.completions.create call (translate / polish / interpret), across all
+# jobs and threads, so running several batch jobs in parallel cannot exceed
+# the provider rate limit.
+_API_SEMAPHORE = threading.BoundedSemaphore(6)
+_API_MAX_RETRIES = 2  # extra attempts after the first failure
+
+
+def _api_completion(client, model: str, messages: list, temperature: float) -> object:
+    """chat.completions.create with a global concurrency cap and retries."""
+    last_err: Exception | None = None
+    for attempt in range(_API_MAX_RETRIES + 1):
+        try:
+            with _API_SEMAPHORE:
+                return client.chat.completions.create(
+                    model=model, messages=messages, temperature=temperature,
+                )
+        except Exception as e:
+            last_err = e
+            if attempt < _API_MAX_RETRIES:
+                time.sleep(0.6 * (2 ** attempt))  # 0.6s, 1.2s backoff
+    raise last_err
 
 # ---------------------------------------------------------------------------
 # Common proper nouns used as fallback when user glossary doesn't cover them
@@ -45,8 +71,10 @@ _NUMERIC_DOT_DATE_RE = re.compile(r'(?<!\d)(\d{4})\.(\d{1,2})\.(\d{1,2})(?!\d)')
 _NUMERIC_DASH_DATE_RE = re.compile(r'(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)')
 
 # Double-date cleanup patterns
+# NOTE: non-capturing group so that any pattern embedding _MONTHS_PAT keeps
+# its own group numbering (e.g. _DATE_MONTH_YEAR_DAY_RE expects 1=month).
 _MONTHS_PAT = (
-    r'(January|February|March|April|May|June|July|August|September|October|November|December)'
+    r'(?:January|February|March|April|May|June|July|August|September|October|November|December)'
 )
 # "October 13, 2025 2025.10.13" → "October 13, 2025"
 _DOUBLE_DATE_RE = re.compile(
@@ -59,14 +87,76 @@ _DUP_EN_DATE_RE = re.compile(
 
 # URL detection pattern — matches URLs (http/https/www or domain-like patterns
 # with .tld).  Used to protect URLs from being mangled by the translation model.
-# The character class [^\s\u4e00-\u9fff\uff00-\uffef] excludes whitespace,
-# CJK characters, and fullwidth punctuation so the URL match stops before
-# any Chinese label prefix.
-_URL_CHAR = r'[^\s\u4e00-\u9fff\uff00-\uffef]'
+# The character class [^\s\u4e00-\u9fff\u3000-\u303f\uff00-\uffef] excludes
+# whitespace, CJK characters, CJK punctuation (U+3000-303F — this covers the
+# Chinese full stop 。U+3002 which was previously swallowed into the URL match,
+# leaving it un-cleaned) and fullwidth punctuation, so the URL match stops
+# before any Chinese label prefix or trailing Chinese punctuation.
+_URL_CHAR = r'[^\s\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]'
 _URL_LINE_RE = re.compile(
     r'(?:https?://' + _URL_CHAR + r'+|www\.' + _URL_CHAR + r'+\.\w{2,}|[a-zA-Z0-9]' + _URL_CHAR + r'*\.(?:com|cn|net|org|edu|gov|io)\b' + _URL_CHAR + r'*)',
     re.IGNORECASE,
 )
+
+# ---------------------------------------------------------------------------
+# Guardable placeholders — amounts / plain numbers / URLs / emails
+#
+# These are replaced with __G<n>__ tokens BEFORE the text is sent to the
+# translation / polish models, and restored verbatim AFTER, so the model can
+# never truncate, reformat or invent them (fixes badcase type 1 数字截断 and
+# type 7 URL/邮箱损坏 at the root).
+# ---------------------------------------------------------------------------
+# Amounts with Chinese units → converted to an English amount (万=×10⁴, 亿=×10⁸)
+_AMOUNT_CN_RE = re.compile(
+    r'(\d[\d,，.]*)\s*(万亿美元|亿美元|亿人民币|亿元人民币|万元人民币|亿元|万元|千元|元人民币|美元|美金|人民币|亿|万|元)'
+)
+_AMOUNT_CN_MULT = {
+    '万亿美元': 10 ** 12, '亿美元': 10 ** 8, '亿人民币': 10 ** 8, '亿元人民币': 10 ** 8,
+    '万元人民币': 10 ** 4, '亿元': 10 ** 8, '万元': 10 ** 4, '千元': 10 ** 3,
+    '元人民币': 1, '美元': 1, '美金': 1, '人民币': 1,
+    '亿': 10 ** 8, '万': 10 ** 4, '元': 1,
+}
+# Plain numbers (with thousand separators / decimals). (?<![\d_]) / (?![\d_])
+# exclude digits inside our own __G<n>__ placeholders.
+_PLAIN_NUM_RE = re.compile(r'(?<![\d_])\d[\d,，.]*(?:\.\d+)?(?![\d_])')
+# Inline URLs / emails embedded in longer text (protected so the model keeps
+# them byte-for-byte; the dedicated URL-label shortcut handles URL-only lines).
+_URL_INLINE_RE = re.compile(
+    r'(?:https?://' + _URL_CHAR + r'+|www\.' + _URL_CHAR + r'+\.\w{2,})',
+    re.IGNORECASE,
+)
+_EMAIL_INLINE_RE = re.compile(r'[\w.+-]+@[\w.-]+\.\w{2,}')
+# Residual guard token — any __G<n>__ the model failed to keep verbatim is
+# dropped rather than leaking into the output.
+_GUARD_LEFTOVER_RE = re.compile(r'__G\d+__')
+
+# ---------------------------------------------------------------------------
+# Format normalization (badcase type 5/6 rule-based fixes)
+# NOTE: _MONTHS_PAT contains its own capturing group, so it is wrapped in a
+# non-capturing group here to keep the group numbers aligned (1=month, ...).
+# ---------------------------------------------------------------------------
+# "January 1987 13th" → "January 13, 1987" (wrong date word order)
+_DATE_MONTH_YEAR_DAY_RE = re.compile(
+    rf'\b((?:{_MONTHS_PAT}))\s+(\d{{4}})\s+(\d{{1,2}})(?:st|nd|rd|th)?\b'
+)
+# "January 13th, 1987" → "January 13, 1987" (strip ordinal suffixes)
+_DATE_ORDINAL_RE = re.compile(
+    rf'\b((?:{_MONTHS_PAT}))\s+(\d{{1,2}})(?:st|nd|rd|th),\s+(\d{{4}})\b'
+)
+# "13 January 1987" → "January 13, 1987" (European order → US order)
+_DATE_EURO_RE = re.compile(
+    rf'\b(\d{{1,2}})\s+((?:{_MONTHS_PAT}))\s+(\d{{4}})\b'
+)
+# "RMB 400,000 yuan" / "RMB 400,000 Yuan" → "RMB 400,000" (RMB+Yuan redundancy)
+_RMB_YUAN_RE = re.compile(r'\bRMB\s+([\d,]+\.?\d*)\s*(?:yuan|Yuan)\b')
+
+# Stray punctuation the model appends after numbers/dates:
+#   "November 25,,, 2024,.." → "November 25, 2024."
+# Compress runs of commas/periods and comma-period pairs. Decimal separators
+# (5.5), thousands (1,000), ellipses (...) and dotted IDs (1.2.3) stay intact.
+_PUNCT_RUN_COMMA_RE = re.compile(r',{2,}')
+_PUNCT_RUN_DOT_RE = re.compile(r'\.{2,}')
+_PUNCT_COMMA_DOT_RE = re.compile(r',\.')
 
 class TranslatorService:
     """
@@ -174,6 +264,81 @@ class TranslatorService:
         return ''.join(rebuilt)
 
     # ------------------------------------------------------------------
+    # Guardable protection — amounts / numbers / URLs / emails
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _protect_guardables(text: str) -> tuple[str, dict[str, str]]:
+        """Replace amounts, plain numbers, URLs and emails with __G<n>__
+        placeholders so the translation/polish models cannot alter them.
+
+        Order matters:
+          1. amounts with Chinese units (converted to English amounts first,
+             e.g. 1025.00万元 → RMB 10,250,000.00),
+          2. inline URLs,
+          3. inline emails,
+          4. any remaining plain numbers.
+
+        Returns ``(protected_text, guard_map)``; restore with
+        ``_restore_guardables``.
+        """
+        if not text:
+            return text, {}
+        guard_map: dict[str, str] = {}
+        counter = [0]
+
+        def _make(original: str) -> str:
+            token = f'__G{counter[0]}__'
+            counter[0] += 1
+            guard_map[token] = original
+            return token
+
+        result = text
+
+        def _guard_amount(m: re.Match) -> str:
+            raw = m.group(1).replace(',', '').replace('，', '')
+            try:
+                val = float(raw)
+            except ValueError:
+                return m.group(0)
+            unit = m.group(2)
+            mult = _AMOUNT_CN_MULT.get(unit, 1)
+            total = val * mult
+            currency = 'USD' if ('美元' in unit or '美金' in unit) else 'RMB'
+            # Shorthand follows the CN unit granularity: 亿/万亿 units are
+            # themselves coarse (integer 亿), so converting e.g. 500亿元 →
+            # "RMB 50 billion" is exactly equivalent, and far more natural
+            # than 50,000,000,000.00. Finer units (万/千/元) keep the full
+            # number for precision (510万元 → RMB 5,100,000.00).
+            if '亿' in unit:
+                if total >= 10 ** 12:
+                    rendered = f'{currency} {total / 10 ** 12:g} trillion'
+                elif total >= 10 ** 9:
+                    rendered = f'{currency} {total / 10 ** 9:g} billion'
+                else:
+                    rendered = f'{currency} {total / 10 ** 6:g} million'
+            else:
+                rendered = f'{currency} {total:,.2f}'
+            return _make(rendered)
+
+        result = _AMOUNT_CN_RE.sub(_guard_amount, result)
+        result = _URL_INLINE_RE.sub(lambda m: _make(m.group(0)), result)
+        result = _EMAIL_INLINE_RE.sub(lambda m: _make(m.group(0)), result)
+        result = _PLAIN_NUM_RE.sub(lambda m: _make(m.group(0)), result)
+        return result, guard_map
+
+    @staticmethod
+    def _restore_guardables(text: str, guard_map: dict[str, str]) -> str:
+        """Restore guard placeholders in reverse-insertion order (stable).
+        Any placeholder the model failed to keep is dropped."""
+        if not text or not guard_map:
+            return text if not guard_map else _GUARD_LEFTOVER_RE.sub('', text)
+        result = text
+        for token, original in guard_map.items():
+            result = result.replace(token, original)
+        return _GUARD_LEFTOVER_RE.sub('', result)
+
+    # ------------------------------------------------------------------
     # Glossary-aware replacement
     # ------------------------------------------------------------------
 
@@ -259,6 +424,72 @@ class TranslatorService:
             ),
         )
 
+    @staticmethod
+    def _normalize_formats(text: str) -> str:
+        """Rule-based format normalization for common type-5/6 issues.
+
+        - Date word order: "January 1987 13th" → "January 13, 1987"
+        - Ordinal suffixes: "January 13th, 1987" → "January 13, 1987"
+        - European order: "13 January 1987" → "January 13, 1987"
+        - RMB+Yuan redundancy: "RMB 400,000 yuan" → "RMB 400,000"
+
+        Applied after translation/polish; only touches unambiguous patterns.
+        """
+        if not text:
+            return text
+        result = _DATE_MONTH_YEAR_DAY_RE.sub(
+            lambda m: f"{m.group(1)} {int(m.group(3))}, {m.group(2)}", text)
+        result = _DATE_ORDINAL_RE.sub(
+            lambda m: f"{m.group(1)} {int(m.group(2))}, {m.group(3)}", result)
+        result = _DATE_EURO_RE.sub(
+            lambda m: f"{m.group(2)} {int(m.group(1))}, {m.group(3)}", result)
+        result = _RMB_YUAN_RE.sub(r'RMB \1', result)
+
+        # ── Stray punctuation cleanup ──
+        # The model often appends junk commas/periods after dates or amounts
+        # ("November 25,,, 2024,.."). Compress runs but preserve ellipses.
+        # Order matters: dots first (so ",.." → ",."), then comma runs, then
+        # the comma-period pair (",." → ".").
+        result = _PUNCT_RUN_DOT_RE.sub(
+            lambda m: '...' if len(m.group(0)) >= 3 else '.', result)
+        result = _PUNCT_RUN_COMMA_RE.sub(',', result)
+        result = _PUNCT_COMMA_DOT_RE.sub('.', result)
+        return result
+
+    @staticmethod
+    def _split_long(text: str, max_len: int = 400) -> list[str]:
+        """Split text into sentence-aligned chunks of at most *max_len* chars.
+
+        Splits on Chinese/English sentence-ending punctuation so each chunk is
+        a complete semantic unit (whole-paragraph translation quality without
+        oversized single requests that risk tail truncation). Guarded
+        placeholders (__G<n>__) contain no punctuation, so they are never
+        split across chunk boundaries. Text without punctuation beyond max_len
+        is hard-split.
+        """
+        if not text:
+            return [text]
+        if len(text) <= max_len:
+            return [text]
+        parts = re.split(r'(?<=[。；！？!?])', text)
+        chunks: list[str] = []
+        cur = ""
+        for p in parts:
+            if not p:
+                continue
+            if len(cur) + len(p) <= max_len:
+                cur += p
+            else:
+                if cur:
+                    chunks.append(cur)
+                while len(p) > max_len:
+                    chunks.append(p[:max_len])
+                    p = p[max_len:]
+                cur = p
+        if cur:
+            chunks.append(cur)
+        return chunks
+
     def translate_text(
         self,
         text: str,
@@ -306,6 +537,13 @@ class TranslatorService:
         # Convert Chinese dates to English format BEFORE sending to API,
         # so the model never sees 年/月/日 as standalone words.
         processed_text = self.convert_chinese_dates(text)
+        # Guard amounts / numbers / URLs / emails so the model can never
+        # truncate, reformat or invent them (badcase type 1 & 7).
+        processed_text, guard_map = self._protect_guardables(processed_text)
+        # Split very long text into sentence chunks AFTER protection, so
+        # guarded tokens (URLs/numbers/emails) can never be split across
+        # chunk boundaries, and each chunk is a complete semantic unit.
+        chunks = self._split_long(processed_text)
 
         combined = dict(COMMON_TERMS)
         combined.update(glossary)
@@ -331,21 +569,43 @@ class TranslatorService:
                 "- DO NOT modify, reinterpret, or add any date format. Preserve dates exactly as they appear.\n"
                 "- DO NOT append original numeric date formats (like '2025.10.13' or '2025-10-13') "
                 "after converted dates.\n"
+                "IMPORTANT — Numbers, amounts, URLs and emails:\n"
+                "- Amounts, numbers, URLs and emails are protected as __G<n>__ placeholders.\n"
+                "- Preserve every __G<n>__ placeholder EXACTLY as-is; never translate, reformat,\n"
+                "  truncate, merge or drop them. Do not invent values.\n"
                 "Use Times New Roman style, formal tone, and double line spacing.\n"
                 "Output only the translated text, no explanations."
             )
 
         try:
-            response = client.chat.completions.create(
-                model=active_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": processed_text},
-                ],
-                temperature=temperature if temperature is not None else 0.3,
-            )
-            translated = response.choices[0].message.content
-            return translated.strip() if translated else text
+            if len(chunks) == 1:
+                response = _api_completion(
+                    client, active_model,
+                    [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": chunks[0]},
+                    ],
+                    temperature if temperature is not None else 0.3,
+                )
+                translated = response.choices[0].message.content or ""
+            else:
+                parts = []
+                for c in chunks:
+                    response = _api_completion(
+                        client, active_model,
+                        [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": c},
+                        ],
+                        temperature if temperature is not None else 0.3,
+                    )
+                    parts.append(response.choices[0].message.content or "")
+                translated = ''.join(parts)
+            if translated:
+                translated = translated.strip()
+            # Restore guarded numbers / amounts / URLs / emails verbatim.
+            translated = self._restore_guardables(translated, guard_map)
+            return translated if translated else text
         except Exception as e:
             return f"[Translation Error]: {text}"
 
@@ -354,9 +614,12 @@ class TranslatorService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _clean_mechanical_errors(text: str) -> str:
+    def _clean_mechanical_errors(text: str, protected: set | None = None) -> str:
         """Fix deterministic mechanical errors: duplicated chars/words,
         missing spaces at word boundaries, punctuation, parentheses.
+
+        *protected* is an optional whitelist of rare/proper-noun tokens that
+        must never be deduplicated (see dedup_guard.build_protected_tokens).
 
         Applied to ALL translated text (both full-paragraph and per-run)
         regardless of whether the polish step runs."""
@@ -383,10 +646,10 @@ class TranslatorService:
                 if is_url or not seg_text:
                     rebuilt.append(seg_text)
                     continue
-                rebuilt.append(TranslatorService._clean_segment(seg_text))
+                rebuilt.append(TranslatorService._clean_segment(seg_text, protected))
             return ''.join(rebuilt)
 
-        return TranslatorService._clean_segment(text)
+        return TranslatorService._clean_segment(text, protected)
 
     # ------------------------------------------------------------------
     # Chinese punctuation → English mapping
@@ -411,8 +674,12 @@ class TranslatorService:
     }
 
     @staticmethod
-    def _clean_segment(text: str) -> str:
-        """Apply mechanical error cleanup to a non-URL text segment."""
+    def _clean_segment(text: str, protected: set | None = None) -> str:
+        """Apply mechanical error cleanup to a non-URL text segment.
+
+        *protected* is an optional whitelist of rare/proper-noun tokens that
+        must never be deduplicated (see dedup_guard.build_protected_tokens).
+        """
         if not text:
             return text
 
@@ -428,14 +695,16 @@ class TranslatorService:
         # "October 13, 2025 October 13, 2025" → "October 13, 2025" (per-run dup)
         result = _DUP_EN_DATE_RE.sub(r'\1', result)
 
-        # ── Phrase-level dedup: "14:30-17:30 14:30-17:30" → "14:30-17:30"
-        # Word dedup (\b\w+\b) can't catch time ranges with colons/hyphens.
-        # This regex catches any non-empty token sequence that repeats immediately.
-        result = re.sub(
-            r'(\S+(?:\s+\S+){0,6})\s+\1\b',
-            r'\1',
-            result,
-        )
+        # ── Format normalization (type 5/6): date word order, ordinal suffixes,
+        # European date order, RMB+Yuan redundancy ──
+        result = TranslatorService._normalize_formats(result)
+
+        # ── Graded phrase/word dedup with protections (dedup_guard) ──
+        # Replaces the legacy blind regexes which could not distinguish stopwords,
+        # content words and proper nouns, and had no audit trail. Auto-delete now
+        # requires: adjacent + exact match + (>= 2 content words | stopword | ID
+        # token) + no whitelist hit. Everything else is kept and audited.
+        result, _audit = dedup_guard.dedup_text(result, protected)
 
         # 3+ consecutive identical chars (clear typo: "missspelled"→"mispelled")
         # Preserve Roman numerals (IVXLCDM) and digits to avoid mangling
@@ -446,17 +715,6 @@ class TranslatorService:
                 return m.group(0)  # preserve numbers & Roman numerals
             return ch
         result = re.sub(r'(\w)\1{2,}', _dedup_char, result)
-        # Duplicated whole word: "the the" or "has gradually has gradually"
-        # Skip URL-related tokens to avoid mangling domains
-        # Also skip digit-only words to avoid breaking dates (e.g. "2025 2025.10.13")
-        def _dedup_word(m):
-            word = m.group(1)
-            if word.lower() in ('www', 'http', 'https', 'ftp'):
-                return m.group(0)
-            if word.isdigit():
-                return m.group(0)  # don't dedup numeric tokens
-            return word
-        result = re.sub(r'\b(\w+)\s+\1\b', _dedup_word, result)
         # lowercase→UPPERCASE word boundary: "regionRelatively" → "region Relatively"
         result = re.sub(r'([a-z])([A-Z])', r'\1 \2', result)
         # Punctuation without trailing space: "climate.trend" → "climate. trend"
@@ -545,6 +803,10 @@ class TranslatorService:
 
         pre_cleaned = _TIME_RANGE_RE.sub(_guard_time, pre_cleaned)
 
+        # ── Also guard numbers / amounts / URLs / emails so the polish model
+        # cannot reformat or truncate them (badcase type 1 & 7). ──
+        pre_cleaned, guard_map = self._protect_guardables(pre_cleaned)
+
         client = self._make_client(api_key, base_url)
         active_model = model or self._model
 
@@ -555,7 +817,9 @@ class TranslatorService:
             "CRITICAL — fix these specific issues:\n"
             "- Typographical errors: duplicated letters (e.g. \"decdecision\"→\"decision\") "
             "or truncated words (e.g. \"Massachu\"→\"Massachusetts\").\n"
-            "- Duplicate / repeated words (e.g. \"indoor indoor\"→\"indoor\").\n"
+            "- Duplicate words: ONLY remove exact, immediately-adjacent duplicated words\n"
+            "  or short phrases (e.g. \"indoor indoor\"→\"indoor\"). Do NOT remove any word\n"
+            "  that is not an immediate adjacent duplicate.\n"
             "- Run-together words with missing spaces (e.g. \"regionRelatively\"→\"region relatively\").\n"
             "- Grammar errors: subject-verb agreement, missing articles, incorrect prepositions, "
             "tense consistency.\n"
@@ -567,8 +831,17 @@ class TranslatorService:
             "- Maintain a formal academic tone throughout.\n"
             "- Preserve ALL [bracketed markers] like [Seal], [Image], [Barcode] exactly.\n"
             "- Preserve all numbers, dates, proper nouns, and technical terms exactly.\n"
+            "- Preserve every __G<n>__ placeholder EXACTLY as-is; never translate, reformat,\n"
+            "  truncate, merge or drop them (they stand for amounts / numbers / URLs / emails).\n"
             "- CRITICAL: Keep ALL dates and time ranges UNCHANGED (e.g. 'October 22, 2025' "
             "or '14:30-17:30'). Do not reformat or append extra formats.\n"
+            "- NEVER remove or merge any proper noun, person name, institution name, number,\n"
+            "  technical term, or bracketed marker, even if it appears more than once in\n"
+            "  different locations. Repeated terms at different positions are intentional\n"
+            "  and MUST be preserved.\n"
+            "- NEVER delete supplementary explanations, parallel structures, or semantically\n"
+            "  similar phrasing — only exact, immediately-adjacent duplicates qualify for\n"
+            "  removal.\n"
             "- Do NOT change or remove any factual information — only improve how it is expressed.\n"
             "- If the text contains truncated or clearly malformed words, use context to infer "
             "and restore the correct word.\n"
@@ -576,13 +849,13 @@ class TranslatorService:
         )
 
         try:
-            response = client.chat.completions.create(
-                model=active_model,
-                messages=[
+            response = _api_completion(
+                client, active_model,
+                [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": pre_cleaned},
                 ],
-                temperature=0.2,
+                0.2,
             )
             polished = response.choices[0].message.content
             result = polished.strip() if polished else pre_cleaned
@@ -596,6 +869,9 @@ class TranslatorService:
             result = result.replace(token, original)
         # Also restore any placeholders still left in case of partial matches
         result = re.sub(r'__DATE_\d+__|__TIME_\d+__', '', result)
+
+        # ── Restore guarded numbers / amounts / URLs / emails ──
+        result = self._restore_guardables(result, guard_map)
 
         # ── Post-clean: catch anything the model missed ──
         result = self._clean_mechanical_errors(result)

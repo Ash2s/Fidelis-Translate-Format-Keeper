@@ -7,6 +7,8 @@ server.log
 *.log
 /tmp/
 测试文件用/
+# Packaged distribution output (built artifacts, kept out of the repo)
+/斐迪译Fidelis-Translate/
 
 # exclude negations (files we DO want to track)
 !.env.example

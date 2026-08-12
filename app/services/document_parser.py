@@ -1,11 +1,13 @@
 from docx import Document as DocxDocument
 from docx.shared import Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from typing import Optional
 from lxml import etree
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import re
+
+from app.services import dedup_guard
 
 
 class DocumentParser:
@@ -211,115 +213,68 @@ class DocumentParser:
         translated_runs: list[str],
     ) -> None:
         """
-        Replace each run's text with its per-run translation while preserving
-        the run's ORIGINAL formatting (highlight, underline, color, bold,
-        italic) that was already stored in ``<w:rPr>`` at extraction time.
+        Write the whole-paragraph translation back while preserving formatting.
 
-        The only forced change is font → Times New Roman 12pt and line
-        spacing.  Background shading is cleared separately via
-        ``clear_background_shading``.
+        Translation is now whole-paragraph (per-run translation was removed:
+        it was slow and produced run-boundary duplicates). The full translated
+        text goes into the FIRST non-empty run, and that carrier run receives
+        the UNION of all non-empty runs' formats (bold / italic / underline /
+        highlight / color). Other runs keep their original ``<w:rPr>`` but
+        carry no text.
 
-        After replacing text, inter-run spacing is normalized: if two
-        adjacent runs would merge into a single word (no space between them
-        where one is needed), a space is inserted.  This handles cases where
-        a Chinese word split across multiple formatting runs is translated
-        into separate English words/phrases (e.g. ``Example`` + ``For example``
-        → ``Example For example``).
+        The only forced change is font -> Times New Roman 12pt. Background
+        shading is cleared separately via ``clear_background_shading``.
         """
         w_r_els = para._p.findall(qn('w:r'))
 
+        # -- Format union over non-empty original runs -------------------
+        non_empty = [rd for rd in runs_data if rd.get("text", "").strip()]
+        bold = any(rd.get("bold") for rd in non_empty)
+        italic = any(rd.get("italic") for rd in non_empty)
+        underline = any(rd.get("underline") for rd in non_empty)
+        highlight = next((rd.get("highlight") for rd in non_empty
+                          if rd.get("highlight")), None)
+        color = next((rd.get("color") for rd in non_empty
+                      if rd.get("color")), None)
+
+        # Full translated text = first non-empty slot of translated_runs
+        full_text = ""
+        for t in translated_runs:
+            if t.strip():
+                full_text = t
+                break
+
+        # -- Clear text of every run; carrier run gets the full text ------
+        carrier_done = False
         for r_idx, rd in enumerate(runs_data):
-            original_text = rd.get("text", "")
-            if not original_text.strip():
-                continue  # this run was empty in the original – skip
-
-            if r_idx >= len(w_r_els) or r_idx >= len(translated_runs):
-                continue  # safety guard
-
+            if r_idx >= len(w_r_els):
+                continue
             r_elem = w_r_els[r_idx]
-
-            # Clear existing <w:t> children
             for t_elem in r_elem.findall(qn('w:t')):
                 r_elem.remove(t_elem)
-
-            # Add new <w:t> with translated text
-            new_t = OxmlElement('w:t')
-            new_t.set(qn('xml:space'), 'preserve')
-            new_t.text = translated_runs[r_idx]
-            r_elem.append(new_t)
-
-        # ── Normalise inter-run spacing & dedup ──────────────────────
-        # Walk runs left-to-right.  For each run with content, look back
-        # at the previous meaningful run (skipping whitespace-only runs)
-        # and: (a) dedup repeated boundary words, (b) fix missing spaces.
-        prev_text = None  # last meaningful run's text
-        prev_t_elem = None
-        for r_idx in range(min(len(w_r_els), len(translated_runs))):
-            t_curr = w_r_els[r_idx].find(qn('w:t'))
-            if t_curr is None:
-                continue
-            curr_text = t_curr.text or ''
-            if not curr_text.strip():
-                # Whitespace-only run — keep as candidate for spacing but
-                # don't use as prev_text for dedup purposes.
-                continue
-
-            if prev_text is not None and prev_t_elem is not None:
-                # -- Full duplicate: "Challenge" + "Challenge" → clear 2nd run --
-                prev_stripped = prev_text.strip()
-                curr_stripped = curr_text.strip()
-                if prev_stripped and curr_stripped and (
-                    prev_stripped.lower() == curr_stripped.lower()
-                ):
-                    t_curr.text = ''
-                    continue
-
-                prev_words = prev_text.rstrip().split()
-                curr_words = curr_text.lstrip().split()
-
-                # -- Dedup: "University" + " University" → drop duplicate --
-                if prev_words and curr_words and (
-                    prev_words[-1].strip('.,;:!?').lower()
-                    == curr_words[0].strip('.,;:!?').lower()
-                ):
-                    curr_text = ' '.join(curr_words[1:])
-                    if curr_text:
-                        curr_text = ' ' + curr_text
-                    else:
-                        curr_text = ''
-                    t_curr.text = curr_text
-                    # Refresh curr_words after dedup
-                    curr_words = curr_text.lstrip().split()
-
-                # -- Spacing: merge fragments, add missing space --
-                # Add space when prev ends with alnum or punctuation and curr
-                # starts with a letter (e.g. "2010." + "D]." → "2010. D].").
-                need_space = (
-                    curr_text
-                    and prev_text[-1].isalnum() and curr_text[0].isalnum()
-                    and curr_text[0] not in ('-',)
-                ) or (
-                    curr_text
-                    and prev_text[-1] in ('.', ',', ':', ';', '!', '?', ')')
-                    and curr_text[0].isalpha()
-                )
-                if need_space:
-                    curr_text = ' ' + curr_text
-                    t_curr.text = curr_text
-
-            # Track this as the last meaningful run
-            prev_text = curr_text if curr_text else prev_text
-            prev_t_elem = t_curr
-
-        # Force Times New Roman 12pt on runs that received text
-        # (this modifies <w:rPr> in-place without removing other formatting)
-        for r_idx, rd in enumerate(runs_data):
-            if not rd.get("text", "").strip():
-                continue
-            if r_idx < len(para.runs):
+            if not carrier_done and rd.get("text", "").strip() and r_idx < len(para.runs):
+                new_t = OxmlElement('w:t')
+                new_t.set(qn('xml:space'), 'preserve')
+                new_t.text = full_text
+                r_elem.append(new_t)
                 run = para.runs[r_idx]
+                # -- Apply format union onto the carrier run --
                 run.font.name = "Times New Roman"
                 run.font.size = Pt(12)
+                run.font.bold = bold
+                run.font.italic = italic
+                run.font.underline = underline
+                if color:
+                    try:
+                        run.font.color.rgb = RGBColor.from_string(color)
+                    except (ValueError, AttributeError):
+                        pass
+                if highlight is not None:
+                    try:
+                        run.font.highlight_color = WD_COLOR_INDEX(highlight)
+                    except (ValueError, AttributeError):
+                        pass
+                carrier_done = True  # only the first non-empty run carries text
 
     def clear_background_shading(self, doc: DocxDocument) -> None:
         """
@@ -374,9 +329,18 @@ class DocumentParser:
             sp.set(qn('w:after'), '0')
 
     def save_document(self, doc: DocxDocument, path: str) -> None:
-        """Save the document to *path* and post-process fonts."""
+        """Save the document to *path* and post-process fonts.
+
+        The font-normalization pass is best-effort: a failure there (e.g.
+        sandbox/permission blocking the temp-file move) must NOT fail the
+        already-saved translation — the translated file is complete without it.
+        """
         doc.save(path)
-        DocumentParser.fix_document_fonts(path)
+        try:
+            DocumentParser.fix_document_fonts(path)
+        except Exception:
+            # Cosmetic only; the translated document is already on disk.
+            pass
 
     @staticmethod
     def fix_document_fonts(docx_path: str) -> None:
